@@ -1,0 +1,514 @@
+---
+title: Sync Workflow
+description: How the pull and push commands synchronize content between local and remote
+---
+
+The Buttondown CLI provides bidirectional sync between your local files and Buttondown's servers through `pull` and `push` commands.
+
+## Overview
+
+The sync workflow enables you to:
+
+- **Pull**: Download content from Buttondown to local files
+- **Push**: Upload local changes back to Buttondown
+- **Track**: Maintain sync state to avoid unnecessary operations
+
+<CardGroup cols={2}>
+  <Card title="Pull Workflow" icon="download">
+    Download emails, images, and settings from Buttondown to your local machine.
+  </Card>
+  <Card title="Push Workflow" icon="upload">
+    Upload local changes, new content, and images back to Buttondown.
+  </Card>
+</CardGroup>
+
+## Pull Workflow
+
+The pull workflow downloads content from Buttondown and converts it to local files.
+
+### Pull Process
+
+From `src/commands/pull.tsx:83-162`, the pull operation follows these steps:
+
+<Steps>
+  <Step title="Pull base resources">
+    Downloads automations, newsletter settings, and snippets as JSON files.
+    
+    ```typescript
+    for (const resource of BASE_RESOURCES) {
+      const data = await resource.remote.get(configuration);
+      if (data) {
+        await resource.local.set(data, configuration);
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Download images">
+    Fetches all images from Buttondown's API and saves them to `media/`.
+    
+    ```typescript
+    const remoteImages = await IMAGES_RESOURCE.remote.get(configuration);
+    await IMAGES_RESOURCE.local.set(remoteImages, configuration);
+    ```
+    
+    Each image is:
+    - Downloaded from its S3 URL
+    - Saved with its original filename
+    - Tracked in the sync state
+  </Step>
+  
+  <Step title="Build image mapping">
+    Creates a mapping between remote URLs and local paths.
+    
+    ```typescript
+    const syncedImages: Record<string, SyncedImage> = {};
+    for (const image of remoteImages) {
+      const filename = path.basename(image.image);
+      const localPath = path.join(configuration.directory, "media", filename);
+      syncedImages[image.id] = {
+        id: image.id,
+        localPath,
+        url: image.image,
+        filename,
+      };
+    }
+    ```
+  </Step>
+  
+  <Step title="Download emails">
+    Fetches all emails and converts absolute image URLs to relative paths.
+    
+    ```typescript
+    const remoteEmails = await REMOTE_EMAILS_RESOURCE.get(configuration);
+    const processedEmails = remoteEmails.map((email) => ({
+      ...email,
+      body: convertAbsoluteToRelativeImages(email.body, emailsDir, imageMap),
+    }));
+    await LOCAL_EMAILS_RESOURCE.set(processedEmails, configuration);
+    ```
+    
+    This step:
+    - Downloads all emails via paginated API requests
+    - Converts `https://buttondown.s3.amazonaws.com/...` to `../media/filename.png`
+    - Saves as Markdown files with frontmatter
+  </Step>
+  
+  <Step title="Write sync state">
+    Saves the image mapping to `.buttondown.json` for future sync operations.
+    
+    ```typescript
+    await writeSyncState(configuration.directory, { syncedImages });
+    ```
+  </Step>
+</Steps>
+
+### Pull Command
+
+```bash
+# Pull to default directory (./buttondown)
+buttondown pull
+
+# Pull to custom directory
+buttondown pull --directory=./my-newsletter
+```
+
+## Push Workflow
+
+The push workflow uploads local changes back to Buttondown.
+
+### Push Process
+
+From `src/commands/push.tsx:84-184`, the push operation follows these steps:
+
+<Steps>
+  <Step title="Read sync state">
+    Loads the current sync state from `.buttondown.json`.
+    
+    ```typescript
+    const syncState = await readSyncState(configuration.directory);
+    const syncedImages = { ...syncState.syncedImages };
+    ```
+  </Step>
+  
+  <Step title="Read local emails">
+    Scans the `emails/` directory for all Markdown files.
+    
+    ```typescript
+    const localEmails = await LOCAL_EMAILS_RESOURCE.get(configuration);
+    ```
+  </Step>
+  
+  <Step title="Upload new images">
+    Finds relative image references in emails and uploads any that aren't already synced.
+    
+    ```typescript
+    for (const email of localEmails) {
+      const refs = findRelativeImageReferences(email.body);
+      for (const ref of refs) {
+        const absolutePath = path.resolve(emailsDir, ref.relativePath);
+        const alreadySynced = Object.values(syncedImages).find(
+          (img) => img.localPath === absolutePath,
+        );
+        if (!alreadySynced) {
+          const result = await uploadImage(configuration, absolutePath);
+          syncedImages[result.id] = {
+            id: result.id,
+            localPath: absolutePath,
+            url: result.url,
+            filename: result.filename,
+          };
+        }
+      }
+    }
+    ```
+    
+    Images are uploaded via multipart form data to Buttondown's `/images` endpoint.
+  </Step>
+  
+  <Step title="Convert image paths">
+    Replaces relative paths with absolute URLs using the updated sync state.
+    
+    ```typescript
+    const processedEmails = localEmails.map((email) => ({
+      ...email,
+      body: resolveRelativeImageReferences(email.body, emailsDir, imageMap),
+    }));
+    ```
+    
+    Converts `../media/header.png` to `https://buttondown.s3.amazonaws.com/images/abc123.png`
+  </Step>
+  
+  <Step title="Detect changes">
+    Compares local emails with remote versions to find what's changed.
+    
+    ```typescript
+    const remoteEmailsById = new Map(
+      (await REMOTE_EMAILS_RESOURCE.get(configuration)).map((e) => [e.id, e]),
+    );
+    
+    const changedEmails = localEmails.filter((email) => {
+      if (!email.id) return true; // New email
+      const remote = remoteEmailsById.get(email.id);
+      if (!remote) return true; // Doesn't exist remotely
+      return serialize(email) !== serialize(remote); // Content differs
+    });
+    ```
+    
+    Only emails that have changed are uploaded, saving time and API requests.
+  </Step>
+  
+  <Step title="Upload changed emails">
+    Pushes modified emails to Buttondown.
+    
+    ```typescript
+    await REMOTE_EMAILS_RESOURCE.set(changedEmails, configuration);
+    ```
+    
+    - Emails with an `id` are updated via PATCH
+    - Emails without an `id` are created via POST
+  </Step>
+  
+  <Step title="Push other resources">
+    Uploads automations, newsletter settings, and snippets.
+    
+    ```typescript
+    for (const resource of BASE_RESOURCES) {
+      const data = await resource.local.get(configuration);
+      if (data) {
+        await resource.remote.set(data, configuration);
+      }
+    }
+    ```
+  </Step>
+  
+  <Step title="Update sync state">
+    Saves the updated image mapping to `.buttondown.json`.
+    
+    ```typescript
+    await writeSyncState(configuration.directory, { syncedImages });
+    ```
+  </Step>
+</Steps>
+
+### Push Command
+
+```bash
+# Push from default directory (./buttondown)
+buttondown push
+
+# Push from custom directory
+buttondown push --directory=./my-newsletter
+```
+
+## State Tracking
+
+The CLI uses `.buttondown.json` to track sync state and avoid unnecessary operations.
+
+### State File Structure
+
+From `src/sync/state.ts:4-13`:
+
+```typescript
+export type SyncedImage = {
+  id: string;           // Buttondown image ID
+  localPath: string;    // Absolute path on local filesystem
+  url: string;          // Remote URL on Buttondown's S3
+  filename: string;     // Original filename
+};
+
+export type SyncState = {
+  syncedImages: Record<string, SyncedImage>;
+};
+```
+
+Example `.buttondown.json`:
+
+```json
+{
+  "syncedImages": {
+    "img_abc123": {
+      "id": "img_abc123",
+      "localPath": "/Users/you/newsletter/media/header.png",
+      "url": "https://buttondown.s3.amazonaws.com/images/abc123.png",
+      "filename": "header.png"
+    },
+    "img_def456": {
+      "id": "img_def456",
+      "localPath": "/Users/you/newsletter/media/chart.jpg",
+      "url": "https://buttondown.s3.amazonaws.com/images/def456.jpg",
+      "filename": "chart.jpg"
+    }
+  }
+}
+```
+
+### State Operations
+
+<AccordionGroup>
+  <Accordion title="Read State">
+    ```typescript
+    export async function readSyncState(directory: string): Promise<SyncState> {
+      try {
+        const filePath = path.join(directory, ".buttondown.json");
+        const content = await readFile(filePath, "utf8");
+        return { ...DEFAULT_STATE, ...JSON.parse(content) };
+      } catch {
+        return { ...DEFAULT_STATE };
+      }
+    }
+    ```
+    
+    Returns default state if file doesn't exist (first sync).
+  </Accordion>
+  
+  <Accordion title="Write State">
+    ```typescript
+    export async function writeSyncState(
+      directory: string,
+      state: SyncState,
+    ): Promise<void> {
+      const filePath = path.join(directory, ".buttondown.json");
+      await writeFile(filePath, JSON.stringify(state, null, 2));
+    }
+    ```
+    
+    Pretty-prints JSON with 2-space indentation.
+  </Accordion>
+</AccordionGroup>
+
+## Image Path Resolution
+
+The CLI intelligently converts between relative and absolute image paths.
+
+### Absolute to Relative (Pull)
+
+From `src/sync/emails.ts:233-251`, `convertAbsoluteToRelativeImages`:
+
+```typescript
+export function convertAbsoluteToRelativeImages(
+  content: string,
+  emailDir: string,
+  syncedImages: Record<string, SyncedImageInfo>,
+): string {
+  const regex = new RegExp(ABSOLUTE_IMAGE_URL_REGEX);
+  return content.replace(regex, (match, altText, imageUrl) => {
+    const syncedImage = Object.values(syncedImages).find(
+      (img) => img.url === imageUrl,
+    );
+    if (syncedImage) {
+      const relativePath = path.relative(emailDir, syncedImage.localPath);
+      return `![${altText}](${relativePath})`;
+    }
+    return match; // Keep original if not found
+  });
+}
+```
+
+### Relative to Absolute (Push)
+
+From `src/sync/emails.ts:203-231`, `resolveRelativeImageReferences`:
+
+```typescript
+export function resolveRelativeImageReferences(
+  content: string,
+  emailDir: string,
+  syncedImages: Record<string, SyncedImageInfo>,
+): string {
+  const references = findRelativeImageReferences(content);
+  let processedContent = content;
+  
+  for (const ref of references) {
+    const absolutePath = path.resolve(emailDir, ref.relativePath);
+    const matchingImage = Object.values(syncedImages).find(
+      (img) => img.localPath === absolutePath,
+    );
+    if (matchingImage) {
+      processedContent = replaceImageReference(
+        processedContent,
+        ref.match,
+        matchingImage.url,
+        ref.altText,
+      );
+    }
+  }
+  
+  return processedContent;
+}
+```
+
+## Resource Types
+
+The CLI syncs different types of resources with different strategies.
+
+### Resource Interface
+
+From `src/sync/types.ts:19-24`:
+
+```typescript
+export type Resource<Model, SerializedModel> = {
+  get(configuration: Configuration): Promise<Model | null>;
+  set(value: Model, configuration: Configuration): Promise<OperationResult>;
+  serialize: (r: Model) => SerializedModel;
+  deserialize: (s: SerializedModel) => Model;
+};
+```
+
+### Available Resources
+
+From `src/sync/index.ts:40-53`:
+
+```typescript
+export const BASE_RESOURCES = [
+  AUTOMATIONS_RESOURCE,
+  NEWSLETTER_RESOURCE,
+  SNIPPETS_RESOURCE,
+];
+
+export const RESOURCES = [
+  AUTOMATIONS_RESOURCE,
+  EMAILS_RESOURCE,
+  IMAGES_RESOURCE,
+  NEWSLETTER_RESOURCE,
+  SNIPPETS_RESOURCE,
+];
+```
+
+<Info>
+**Base resources** are synced without special handling. **Emails and images** require special path conversion logic.
+</Info>
+
+## Operation Results
+
+Both pull and push operations return detailed statistics:
+
+```typescript
+export type OperationResult = {
+  updated: number;   // Items modified
+  created: number;   // New items added
+  deleted: number;   // Items removed
+  failed: number;    // Operations that failed
+};
+```
+
+Example output:
+
+```
+emails pushed: 3 updated, 1 created, 0 deleted, 0 failed
+images pushed: 0 updated, 2 created, 0 deleted, 0 failed
+automations pushed: 1 updated, 0 created, 0 deleted, 0 failed
+```
+
+## Best Practices
+
+<Steps>
+  <Step title="Pull before push">
+    Always pull latest changes before pushing to avoid conflicts.
+    
+    ```bash
+    buttondown pull
+    # Make your changes
+    buttondown push
+    ```
+  </Step>
+  
+  <Step title="Commit sync state">
+    Consider committing `.buttondown.json` to version control if working in a team, but be aware it contains absolute paths.
+  </Step>
+  
+  <Step title="Use consistent directories">
+    Use the same `--directory` flag for all operations.
+    
+    ```bash
+    # Good
+    buttondown pull -d ./newsletter
+    buttondown push -d ./newsletter
+    
+    # Bad - will cause issues
+    buttondown pull -d ./newsletter
+    buttondown push -d ./different-folder
+    ```
+  </Step>
+  
+  <Step title="Review changes before pushing">
+    Check what's changed using git diff or your editor before pushing.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### Images not syncing correctly
+
+If images aren't converting properly:
+
+1. Check that images are in the `media/` directory
+2. Verify `.buttondown.json` contains the image mapping
+3. Try pulling fresh to rebuild the state:
+   ```bash
+   rm .buttondown.json
+   buttondown pull
+   ```
+
+### "Email not found" errors
+
+If push fails with email not found errors:
+
+1. The email may have been deleted on Buttondown
+2. Remove the `id` field from the frontmatter to create a new email
+3. Pull fresh to sync the latest state
+
+### State file corruption
+
+If `.buttondown.json` gets corrupted:
+
+```bash
+# Delete the state file
+rm .buttondown.json
+
+# Pull fresh to rebuild
+buttondown pull
+```
+
+<Warning>
+Deleting `.buttondown.json` will cause the CLI to re-download all images and lose track of previous uploads. Use with caution.
+</Warning>

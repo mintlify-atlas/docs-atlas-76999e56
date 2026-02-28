@@ -1,0 +1,339 @@
+---
+title: "Emails"
+description: "API reference for email sync operations"
+---
+
+The emails module handles synchronization of Buttondown newsletter emails between remote API and local markdown files.
+
+## Overview
+
+Emails are stored locally as markdown files with YAML frontmatter containing metadata. The module provides serialization, deserialization, and image reference resolution capabilities.
+
+## Types
+
+### Email
+
+Based on the Buttondown API `Email` schema from OpenAPI specification.
+
+### FrontMatterFields
+
+Metadata fields extracted to YAML frontmatter:
+
+```typescript
+type FrontMatterFields = Pick<
+  Email,
+  | "id"
+  | "subject"
+  | "email_type"
+  | "status"
+  | "metadata"
+  | "slug"
+  | "publish_date"
+  | "description"
+  | "image"
+  | "canonical_url"
+  | "secondary_id"
+  | "filters"
+  | "commenting_mode"
+  | "related_email_ids"
+  | "featured"
+>
+```
+
+### RelativeImageReference
+
+Represents a relative image path found in markdown content:
+
+```typescript
+interface RelativeImageReference {
+  match: string;          // Full markdown image syntax
+  altText: string;        // Alt text from image
+  relativePath: string;   // Relative path to image file
+}
+```
+
+## Serialization Functions
+
+### deserialize()
+
+Parses markdown content with YAML frontmatter into an email object.
+
+```typescript
+function deserialize(content: string): {
+  email: Partial<Email>;
+  isValid: boolean;
+  error?: string;
+}
+```
+
+<ParamField path="content" type="string" required>
+  Markdown content with YAML frontmatter delimited by `---`
+</ParamField>
+
+<ResponseField name="email" type="Partial<Email>">
+  Parsed email object with frontmatter fields and body content
+</ResponseField>
+
+<ResponseField name="isValid" type="boolean">
+  Whether the content was successfully parsed with valid frontmatter
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if parsing failed
+</ResponseField>
+
+#### Example
+
+```typescript
+const result = deserialize(`---
+id: abc123
+subject: Welcome Newsletter
+status: draft
+---
+
+Hello subscribers!`);
+
+if (result.isValid) {
+  console.log(result.email.subject); // "Welcome Newsletter"
+  console.log(result.email.body);    // "Hello subscribers!"
+}
+```
+
+### serialize()
+
+Converts an email object into markdown content with YAML frontmatter.
+
+```typescript
+function serialize(email: Partial<Email & FrontMatterFields>): string
+```
+
+<ParamField path="email" type="Partial<Email & FrontMatterFields>" required>
+  Email object containing body and frontmatter fields
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Formatted markdown with YAML frontmatter
+</ResponseField>
+
+#### Behavior
+
+- Removes fields with null, undefined, empty string, or empty object/array values
+- Excludes fields matching default values defined in `FRONT_MATTER_FIELD_TO_DEFAULT_VALUE`
+- Strips editor mode sigils from body content
+- Formats YAML with 2-space indentation
+
+#### Example
+
+```typescript
+const markdown = serialize({
+  id: "abc123",
+  subject: "Welcome Newsletter",
+  status: "draft",
+  body: "Hello subscribers!"
+});
+
+// Returns:
+// ---
+// id: abc123
+// subject: Welcome Newsletter
+// status: draft
+// ---
+//
+// Hello subscribers!
+```
+
+## Image Reference Functions
+
+### findRelativeImageReferences()
+
+Finds all relative image references in markdown content.
+
+```typescript
+function findRelativeImageReferences(
+  content: string
+): RelativeImageReference[]
+```
+
+<ParamField path="content" type="string" required>
+  Markdown content to search for image references
+</ParamField>
+
+<ResponseField name="return" type="RelativeImageReference[]">
+  Array of relative image references found (excludes absolute URLs)
+</ResponseField>
+
+#### Example
+
+```typescript
+const refs = findRelativeImageReferences(
+  "![Logo](./images/logo.png) ![Remote](https://example.com/img.png)"
+);
+
+// Returns only the relative reference:
+// [{
+//   match: "![Logo](./images/logo.png)",
+//   altText: "Logo",
+//   relativePath: "./images/logo.png"
+// }]
+```
+
+### replaceImageReference()
+
+Replaces an image reference with a new URL.
+
+```typescript
+function replaceImageReference(
+  content: string,
+  originalReference: string,
+  newUrl: string,
+  altText: string
+): string
+```
+
+<ParamField path="content" type="string" required>
+  Markdown content containing the image reference
+</ParamField>
+
+<ParamField path="originalReference" type="string" required>
+  Original markdown image syntax to replace
+</ParamField>
+
+<ParamField path="newUrl" type="string" required>
+  New URL to use in the image reference
+</ParamField>
+
+<ParamField path="altText" type="string" required>
+  Alt text for the image
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Updated markdown content with replaced reference
+</ResponseField>
+
+### resolveRelativeImageReferences()
+
+Replaces relative image paths with absolute URLs from synced images.
+
+```typescript
+function resolveRelativeImageReferences(
+  content: string,
+  emailDir: string,
+  syncedImages: Record<string, { localPath: string; url: string }>
+): string
+```
+
+<ParamField path="content" type="string" required>
+  Markdown content with relative image references
+</ParamField>
+
+<ParamField path="emailDir" type="string" required>
+  Directory containing the email file (for resolving relative paths)
+</ParamField>
+
+<ParamField path="syncedImages" type="Record<string, SyncedImageInfo>" required>
+  Map of synced images with local paths and remote URLs
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Content with relative paths replaced by absolute URLs
+</ResponseField>
+
+### convertAbsoluteToRelativeImages()
+
+Converts absolute image URLs to relative paths for local storage.
+
+```typescript
+function convertAbsoluteToRelativeImages(
+  content: string,
+  emailDir: string,
+  syncedImages: Record<string, { localPath: string; url: string }>
+): string
+```
+
+<ParamField path="content" type="string" required>
+  Markdown content with absolute image URLs
+</ParamField>
+
+<ParamField path="emailDir" type="string" required>
+  Directory containing the email file
+</ParamField>
+
+<ParamField path="syncedImages" type="Record<string, SyncedImageInfo>" required>
+  Map of synced images with local paths and remote URLs
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Content with absolute URLs replaced by relative paths
+</ResponseField>
+
+## Resource Objects
+
+### REMOTE_EMAILS_RESOURCE
+
+Handles email operations with the Buttondown API.
+
+```typescript
+const REMOTE_EMAILS_RESOURCE: Resource<Email[], Email[]>
+```
+
+#### Methods
+
+**get(configuration)** - Fetches all emails from the API with pagination
+
+**set(value, configuration)** - Creates or updates emails via API
+- Adds markdown mode sigil to email body
+- Updates emails with `id`, creates new emails without `id`
+- Returns operation counts (created, updated, deleted, failed)
+
+### LOCAL_EMAILS_RESOURCE
+
+Handles email operations with local markdown files.
+
+```typescript
+const LOCAL_EMAILS_RESOURCE: Resource<Email[], string[]>
+```
+
+#### Methods
+
+**get(configuration)** - Reads all `.md` files from `emails/` directory
+
+**set(value, configuration)** - Writes emails as markdown files
+- Creates files at `emails/{slug-or-id}.md`
+- Uses slug for filename if available, otherwise uses ID
+
+### EMAILS_RESOURCE
+
+Combined resource group for email synchronization.
+
+```typescript
+const EMAILS_RESOURCE: ResourceGroup<Email[], Email[], string[]>
+```
+
+## Constants
+
+### FRONT_MATTER_FIELDS
+
+Array of field names included in YAML frontmatter:
+
+```typescript
+const FRONT_MATTER_FIELDS: (keyof FrontMatterFields)[] = [
+  "id", "subject", "email_type", "status", "metadata",
+  "slug", "publish_date", "description", "image",
+  "canonical_url", "secondary_id", "filters",
+  "commenting_mode", "related_email_ids", "featured"
+]
+```
+
+### FRONT_MATTER_FIELD_TO_DEFAULT_VALUE
+
+Default values for fields (omitted from serialization if unchanged):
+
+```typescript
+const FRONT_MATTER_FIELD_TO_DEFAULT_VALUE = {
+  email_type: "public",
+  featured: false,
+  commenting_mode: "enabled",
+  filters: { filters: [], groups: [], predicate: "and" },
+  related_email_ids: []
+}
+```

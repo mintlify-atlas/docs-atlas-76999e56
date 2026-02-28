@@ -1,0 +1,120 @@
+---
+title: Introduction
+description: A command-line interface for syncing your Buttondown newsletters and media with local folders
+---
+
+# Welcome to Buttondown CLI
+
+Buttondown CLI is a powerful command-line tool that bridges the gap between [Buttondown](https://buttondown.com/) and your local development environment. Work with your newsletters using your favorite text editor, version control your content, and sync everything seamlessly with Buttondown.
+
+## What is Buttondown CLI?
+
+Buttondown CLI enables you to:
+
+- **Back up your content** - Pull all your emails and media from Buttondown to your local machine
+- **Work locally** - Edit emails in your favorite editor using Markdown with frontmatter
+- **Deploy changes** - Push your local changes back to Buttondown with a single command
+- **Sync media** - Upload and download images seamlessly using the Buttondown API
+- **Version control** - Track your newsletter content with Git and collaborate with your team
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Get started by installing Buttondown CLI via npm, yarn, pnpm, or bun
+  </Card>
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Follow a step-by-step guide to sync your first newsletter
+  </Card>
+  <Card
+    title="Commands"
+    icon="terminal"
+    href="/commands"
+  >
+    Explore all available CLI commands and their options
+  </Card>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/configuration"
+  >
+    Learn how to configure your sync directory and settings
+  </Card>
+</CardGroup>
+
+## Key Features
+
+### Local-First Workflow
+
+Edit your newsletters in Markdown format with YAML frontmatter. The CLI maintains a clean directory structure with separate folders for emails and media:
+
+```
+my-newsletter/
+├── .buttondown.json  # Sync configuration
+├── emails/           # Your emails as Markdown files
+│   ├── newsletter-issue-1.md
+│   └── newsletter-issue-2.md
+└── media/            # Images and media files
+    ├── image1.png
+    └── document.pdf
+```
+
+### Seamless Sync
+
+The CLI automatically tracks your content and media files, preventing duplicate uploads and ensuring consistency between your local files and Buttondown. All sync state is managed in `.buttondown.json`.
+
+### Markdown with Frontmatter
+
+Your emails are stored as standard Markdown files with YAML frontmatter for metadata:
+
+```markdown
+---
+subject: My Newsletter Issue #1
+status: draft
+email_type: public
+slug: newsletter-issue-1
+publish_date: 2025-04-27T09:00:00Z
+---
+
+# My Newsletter Issue #1
+
+Hello subscribers! This is the content of my email...
+```
+
+### Media Management
+
+Upload images to Buttondown's media storage and reference them in your emails. The CLI handles image URLs and maintains a mapping between local files and remote URLs.
+
+## Use Cases
+
+<Note>
+  **Backup and Version Control**: Keep your newsletter content safe with local backups and version control using Git
+</Note>
+
+<Note>
+  **Team Collaboration**: Work on newsletters with your team using familiar development workflows
+</Note>
+
+<Note>
+  **Offline Editing**: Draft and edit newsletters offline, then sync when you're ready
+</Note>
+
+<Note>
+  **Content Migration**: Easily migrate content between Buttondown accounts or export for other purposes
+</Note>
+
+## Requirements
+
+- Node.js 18 or higher
+- A [Buttondown](https://buttondown.com/) account
+- Your Buttondown API key (available in your [Buttondown settings](https://buttondown.com/settings))
+
+## Getting Started
+
+Ready to start? Head over to the [Installation](/installation) guide to set up Buttondown CLI, then follow the [Quick Start](/quickstart) guide to sync your first newsletter.

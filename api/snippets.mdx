@@ -1,0 +1,422 @@
+---
+title: "Snippets"
+description: "API reference for snippet sync operations"
+---
+
+The snippets module handles synchronization of reusable content snippets between the Buttondown API and local markdown files.
+
+## Overview
+
+Snippets are stored locally as markdown files with YAML frontmatter in the `snippets/` directory. Each snippet is identified by a unique identifier used as the filename.
+
+## Types
+
+### Snippet
+
+Based on the Buttondown API `Snippet` schema from OpenAPI specification.
+
+```typescript
+type Snippet = components["schemas"]["Snippet"]
+```
+
+Typically includes:
+- `id` - Unique identifier
+- `identifier` - User-defined identifier (used in templates)
+- `name` - Human-readable name
+- `content` - The snippet content (HTML/markdown)
+
+### FrontMatterFields
+
+Fields extracted to YAML frontmatter:
+
+```typescript
+type FrontMatterFields = Pick<Snippet, "id" | "name">
+```
+
+## Serialization Functions
+
+### deserialize()
+
+Parses markdown content with YAML frontmatter into a snippet object.
+
+```typescript
+function deserialize(content: string): {
+  snippet: Partial<Snippet>;
+  isValid: boolean;
+  error?: string;
+}
+```
+
+<ParamField path="content" type="string" required>
+  Markdown content with YAML frontmatter delimited by `---`
+</ParamField>
+
+<ResponseField name="snippet" type="Partial<Snippet>">
+  Parsed snippet object with frontmatter fields and content
+</ResponseField>
+
+<ResponseField name="isValid" type="boolean">
+  Whether the content was successfully parsed with valid frontmatter
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if parsing failed ("Invalid format (missing frontmatter)")
+</ResponseField>
+
+#### Format
+
+Expected format:
+```markdown
+---
+id: snippet_id
+name: Snippet Name
+---
+
+Snippet content goes here
+```
+
+#### Behavior
+
+- Splits content on `---` delimiters
+- Requires at least 3 parts (empty, frontmatter, content)
+- Parses frontmatter as YAML
+- Extracts `id` and `name` fields
+- Stores everything after second `---` as `content`
+- Trims whitespace from content
+
+#### Example
+
+```typescript
+const result = deserialize(`---
+id: snip_123
+name: Email Footer
+---
+
+Thanks for reading!
+Unsubscribe: {{unsubscribe_url}}`);
+
+if (result.isValid) {
+  console.log(result.snippet.name);    // "Email Footer"
+  console.log(result.snippet.content); // "Thanks for reading!\nUnsubscribe: {{unsubscribe_url}}"
+}
+```
+
+### serialize()
+
+Converts a snippet object into markdown content with YAML frontmatter.
+
+```typescript
+function serialize(snippet: Partial<Snippet>): string
+```
+
+<ParamField path="snippet" type="Partial<Snippet>" required>
+  Snippet object containing content and frontmatter fields
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Formatted markdown with YAML frontmatter
+</ResponseField>
+
+#### Behavior
+
+- Separates `content` from other fields
+- Only includes non-null, non-undefined, non-empty frontmatter fields
+- Only includes fields defined in `FRONT_MATTER_FIELDS` (`id`, `name`)
+- Formats YAML with 2-space indentation
+- Returns format: `---\n{yaml}\n---\n\n{content}`
+
+#### Example
+
+```typescript
+const markdown = serialize({
+  id: "snip_123",
+  name: "Email Footer",
+  content: "Thanks for reading!\nUnsubscribe: {{unsubscribe_url}}"
+});
+
+console.log(markdown);
+// ---
+// id: snip_123
+// name: Email Footer
+// ---
+//
+// Thanks for reading!
+// Unsubscribe: {{unsubscribe_url}}
+```
+
+## Resource Objects
+
+### REMOTE_SNIPPETS_RESOURCE
+
+Handles snippet operations with the Buttondown API.
+
+```typescript
+const REMOTE_SNIPPETS_RESOURCE: Resource<Snippet[], Snippet[]>
+```
+
+#### Methods
+
+**get(configuration)**
+
+Fetches all snippets from the API with pagination.
+
+```typescript
+async get(configuration: Configuration): Promise<Snippet[]>
+```
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with API credentials
+</ParamField>
+
+<ResponseField name="return" type="Snippet[]">
+  Array of all snippets from the API
+</ResponseField>
+
+- Automatically handles pagination (100 items per page)
+- Continues fetching until all snippets are retrieved
+
+**set(value, configuration)**
+
+Creates or updates snippets via the API.
+
+```typescript
+async set(
+  value: Snippet[],
+  configuration: Configuration
+): Promise<OperationResult>
+```
+
+<ParamField path="value" type="Snippet[]" required>
+  Array of snippets to create or update
+</ParamField>
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with API credentials
+</ParamField>
+
+<ResponseField name="return" type="OperationResult">
+  Counts of created, updated, deleted, and failed operations
+</ResponseField>
+
+#### Behavior
+
+- Updates snippets that have an `id` field (PATCH `/snippets/{id}`)
+- Creates new snippets without an `id` field (POST `/snippets`)
+- For new snippets, requires `identifier`, `name`, and `content` fields
+- Returns operation counts (updated, created, deleted, failed)
+
+#### Example
+
+```typescript
+const snippets = [
+  {
+    id: "snip_123",
+    identifier: "footer",
+    name: "Email Footer",
+    content: "Updated content"
+  },
+  {
+    identifier: "header",
+    name: "Email Header",
+    content: "New snippet content"
+  }
+];
+
+const result = await REMOTE_SNIPPETS_RESOURCE.set(snippets, config);
+console.log(`Updated: ${result.updated}, Created: ${result.created}`);
+// Updated: 1, Created: 1
+```
+
+### LOCAL_SNIPPETS_RESOURCE
+
+Handles snippet operations with local markdown files.
+
+```typescript
+const LOCAL_SNIPPETS_RESOURCE: Resource<Snippet[], string[]>
+```
+
+#### Methods
+
+**get(configuration)**
+
+Reads all snippets from the `snippets/` directory.
+
+```typescript
+async get(configuration: Configuration): Promise<Snippet[]>
+```
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with directory path
+</ParamField>
+
+<ResponseField name="return" type="Snippet[]">
+  Array of all valid snippets from markdown files
+</ResponseField>
+
+#### Behavior
+
+- Searches for all `.md` files in `snippets/` directory
+- Parses each file using `deserialize()`
+- Extracts `identifier` from filename (without `.md` extension)
+- Skips invalid files
+- Returns array of snippet objects with `identifier` field added
+
+#### Example
+
+```typescript
+const snippets = await LOCAL_SNIPPETS_RESOURCE.get(config);
+// Reads files like:
+// - snippets/footer.md
+// - snippets/header.md
+// Returns snippets with identifier from filename
+```
+
+**set(value, configuration)**
+
+Writes snippets as markdown files to the `snippets/` directory.
+
+```typescript
+async set(
+  value: Snippet[],
+  configuration: Configuration
+): Promise<OperationResult>
+```
+
+<ParamField path="value" type="Snippet[]" required>
+  Array of snippets to write
+</ParamField>
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with directory path
+</ParamField>
+
+<ResponseField name="return" type="OperationResult">
+  Operation result with updated count
+</ResponseField>
+
+#### Behavior
+
+- Creates `snippets/` directory if it doesn't exist
+- Uses snippet's `identifier` field as filename
+- Format: `snippets/{identifier}.md`
+- Overwrites existing files with same identifier
+- Serializes each snippet to markdown with frontmatter
+
+#### Example
+
+```typescript
+const snippets = [
+  {
+    identifier: "footer",
+    name: "Email Footer",
+    content: "Thanks for reading!"
+  },
+  {
+    identifier: "cta-button",
+    name: "Call to Action",
+    content: "[Subscribe now]({{subscribe_url}})"
+  }
+];
+
+await LOCAL_SNIPPETS_RESOURCE.set(snippets, config);
+// Creates:
+// - snippets/footer.md
+// - snippets/cta-button.md
+```
+
+### SNIPPETS_RESOURCE
+
+Combined resource group for snippet synchronization.
+
+```typescript
+const SNIPPETS_RESOURCE: ResourceGroup<Snippet[], Snippet[], string[]>
+```
+
+#### Properties
+
+<ResponseField name="name" type="string">
+  Resource identifier: `"snippets"`
+</ResponseField>
+
+<ResponseField name="remote" type="Resource<Snippet[], Snippet[]>">
+  Remote API resource handler
+</ResponseField>
+
+<ResponseField name="local" type="Resource<Snippet[], string[]>">
+  Local filesystem resource handler
+</ResponseField>
+
+## Usage Patterns
+
+### Sync Snippets from Remote to Local
+
+```typescript
+import { SNIPPETS_RESOURCE } from "./sync/snippets.js";
+
+const config = {
+  baseUrl: "https://api.buttondown.email/v1",
+  apiKey: "your-api-key",
+  directory: "./buttondown-data"
+};
+
+// Fetch all snippets from API
+const remoteSnippets = await SNIPPETS_RESOURCE.remote.get(config);
+
+console.log(`Found ${remoteSnippets.length} snippets`);
+
+// Save to local markdown files
+await SNIPPETS_RESOURCE.local.set(remoteSnippets, config);
+
+console.log("Snippets synced to snippets/ directory");
+```
+
+### Push Local Changes to Remote
+
+```typescript
+// Read all local snippet files
+const localSnippets = await SNIPPETS_RESOURCE.local.get(config);
+
+// Push changes to API
+const result = await SNIPPETS_RESOURCE.remote.set(
+  localSnippets,
+  config
+);
+
+console.log(
+  `Updated: ${result.updated}, Created: ${result.created}`
+);
+```
+
+### Working with Individual Snippet
+
+```typescript
+import { serialize, deserialize } from "./sync/snippets.js";
+import { readFile, writeFile } from "fs/promises";
+
+// Read and parse snippet
+const content = await readFile("snippets/footer.md", "utf8");
+const result = deserialize(content);
+
+if (result.isValid) {
+  const snippet = result.snippet;
+  
+  // Modify content
+  snippet.content += "\n\nP.S. Check out our blog!";
+  
+  // Save back to file
+  const updated = serialize(snippet);
+  await writeFile("snippets/footer.md", updated);
+}
+```
+
+## Constants
+
+### FRONT_MATTER_FIELDS
+
+Array of field names included in YAML frontmatter:
+
+```typescript
+const FRONT_MATTER_FIELDS: (keyof FrontMatterFields)[] = ["id", "name"]
+```
+
+Only these fields are extracted from YAML and included when serializing.

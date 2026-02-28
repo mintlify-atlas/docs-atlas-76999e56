@@ -1,0 +1,194 @@
+---
+title: File Structure
+description: Understanding the directory structure created by the Buttondown CLI
+---
+
+The Buttondown CLI creates a well-organized directory structure to manage your newsletter content locally.
+
+## Directory Overview
+
+When you run `buttondown pull`, the CLI creates the following structure:
+
+```
+my-newsletter/
+├── .buttondown.json      # Sync state and configuration
+├── emails/               # Newsletter emails as Markdown files
+│   ├── welcome-email.md
+│   ├── issue-001.md
+│   └── issue-002.md
+├── media/                # Images and media files
+│   ├── header-image.png
+│   ├── chart.jpg
+│   └── logo.svg
+├── automations/          # Email automations
+│   └── automations.json
+├── newsletter/           # Newsletter settings
+│   └── newsletter.json
+└── snippets/             # Reusable content snippets
+    └── snippets.json
+```
+
+## Core Directories
+
+### `emails/`
+
+Contains all your newsletter emails as Markdown files with YAML frontmatter.
+
+- **File naming**: Each email is saved as `{slug-or-id}.md`
+- **Format**: Markdown with YAML frontmatter (see [Email Format](/concepts/email-format))
+- **Purpose**: Main content for your newsletters
+
+<Tip>
+Emails use the `slug` field for the filename if available, otherwise they fall back to the email's `id`.
+</Tip>
+
+### `media/`
+
+Stores all images and media files downloaded from Buttondown.
+
+- **File naming**: Original filename from Buttondown (e.g., `header-image.png`)
+- **Supported formats**: PNG, JPG, GIF, SVG, WebP
+- **Usage**: Referenced in emails using relative paths
+
+Example reference in an email:
+```markdown
+![My chart](../media/chart.jpg)
+```
+
+### Other Resource Directories
+
+The CLI also syncs additional Buttondown resources:
+
+<CardGroup cols={3}>
+  <Card title="automations/" icon="robot">
+    Email automation workflows
+  </Card>
+  <Card title="newsletter/" icon="newspaper">
+    Newsletter settings and configuration
+  </Card>
+  <Card title="snippets/" icon="code">
+    Reusable content snippets
+  </Card>
+</CardGroup>
+
+## State Management File
+
+### `.buttondown.json`
+
+This file tracks the sync state and is automatically managed by the CLI.
+
+```json
+{
+  "syncedImages": {
+    "img_abc123": {
+      "id": "img_abc123",
+      "localPath": "/absolute/path/to/my-newsletter/media/header.png",
+      "url": "https://buttondown.s3.amazonaws.com/images/abc123.png",
+      "filename": "header.png"
+    }
+  }
+}
+```
+
+**Key responsibilities:**
+
+<ResponseField name="syncedImages" type="object">
+  Maps image IDs to their local paths and remote URLs. This allows the CLI to:
+  - Convert absolute URLs to relative paths when pulling
+  - Convert relative paths to absolute URLs when pushing
+  - Avoid re-uploading images that are already synced
+  - Track which images belong to your newsletter
+</ResponseField>
+
+<Warning>
+Do not manually edit `.buttondown.json` unless you know what you're doing. The CLI relies on this file to track sync state and prevent duplicate uploads.
+</Warning>
+
+## How Files Are Created
+
+### On Pull
+
+From `src/commands/pull.tsx:83-162`:
+
+<Steps>
+  <Step title="Create directories">
+    The CLI creates the base directory structure with `mkdir` recursive mode.
+  </Step>
+  
+  <Step title="Download resources">
+    Syncs automations, newsletter settings, and snippets first.
+  </Step>
+  
+  <Step title="Download images">
+    Fetches all images from Buttondown and saves them to `media/`.
+  </Step>
+  
+  <Step title="Download emails">
+    Fetches emails and converts absolute image URLs to relative paths.
+  </Step>
+  
+  <Step title="Update state">
+    Writes the sync state to `.buttondown.json`.
+  </Step>
+</Steps>
+
+### On Push
+
+From `src/commands/push.tsx:84-184`:
+
+<Steps>
+  <Step title="Read local files">
+    Scans the directory for modified files.
+  </Step>
+  
+  <Step title="Upload new images">
+    Any images referenced in emails that aren't in `.buttondown.json` are uploaded.
+  </Step>
+  
+  <Step title="Convert image paths">
+    Replaces relative image paths with absolute URLs before pushing to Buttondown.
+  </Step>
+  
+  <Step title="Upload changes">
+    Only emails that have changed are uploaded to Buttondown.
+  </Step>
+  
+  <Step title="Update state">
+    Updates `.buttondown.json` with newly uploaded images.
+  </Step>
+</Steps>
+
+## Directory Location
+
+By default, the CLI uses a `./buttondown` directory in your current working directory.
+
+You can specify a different location:
+
+```bash
+buttondown pull --directory=./my-custom-location
+buttondown push --directory=./my-custom-location
+```
+
+<Tip>
+Use the same `--directory` flag for both pull and push commands to ensure consistency.
+</Tip>
+
+## Version Control
+
+When using Git or other version control systems:
+
+**Do commit:**
+- `emails/` - Your newsletter content
+- `media/` - Images and media files (if not too large)
+- `automations/`, `newsletter/`, `snippets/` - Configuration files
+
+**Consider ignoring:**
+- `.buttondown.json` - Contains absolute paths specific to your machine
+- Large media files (add to `.gitignore` and use Git LFS if needed)
+
+Example `.gitignore`:
+```
+.buttondown.json
+media/*.mp4
+media/*.mov
+```

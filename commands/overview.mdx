@@ -1,0 +1,109 @@
+---
+title: Commands Overview
+description: Complete reference for all Buttondown CLI commands
+---
+
+The Buttondown CLI provides five core commands for managing your newsletter content locally.
+
+## Available Commands
+
+### Authentication
+
+- **[login](/commands/login)** - Configure your Buttondown API key
+- **[logout](/commands/logout)** - Clear stored credentials
+
+### Content Synchronization
+
+- **[pull](/commands/pull)** - Download emails and media from Buttondown
+- **[push](/commands/push)** - Upload local emails and media to Buttondown
+
+### Content Creation
+
+- **[create](/commands/create)** - Create a new draft email locally
+
+## Quick Start
+
+### First-time setup
+
+```bash
+# Log in with your API key
+$ buttondown login --api-key=your-api-key
+✓ Successfully configured API key!
+
+# Pull existing content from Buttondown
+$ buttondown pull
+pulling
+emails pulled: 0 updated, 5 created, 0 deleted, 0 failed
+images pulled: 0 updated, 3 created, 0 deleted, 0 failed
+All content saved to: ./buttondown
+```
+
+### Create and publish a new email
+
+```bash
+# Create a new draft email
+$ buttondown create --title="Welcome to my newsletter"
+Created new draft email: ./buttondown/emails/welcome-to-my-newsletter.md
+
+# Edit the email locally
+$ vim ./buttondown/emails/welcome-to-my-newsletter.md
+
+# Push changes to Buttondown
+$ buttondown push
+pushing
+emails pushed: 0 updated, 1 created, 0 deleted, 0 failed
+```
+
+### Work with a custom directory
+
+```bash
+# Pull to a specific directory
+$ buttondown pull --directory=./my-newsletter
+
+# Create an email in a specific directory
+$ buttondown create --title="New Post" --directory=./my-newsletter
+
+# Push from a specific directory
+$ buttondown push --directory=./my-newsletter
+```
+
+## Global Options
+
+These flags are available for most commands:
+
+<ParamField path="--api-key" type="string" shorthand="-k">
+  Your Buttondown API key. If not provided, the CLI will use the key from `buttondown login`.
+</ParamField>
+
+<ParamField path="--base-url" type="string" shorthand="-b" default="https://api.buttondown.com/v1">
+  Your Buttondown API base URL. Only needed for self-hosted instances.
+</ParamField>
+
+<ParamField path="--directory" type="string" shorthand="-d" default="./buttondown">
+  Directory to store or read Buttondown content.
+</ParamField>
+
+<ParamField path="--verbose" type="boolean" shorthand="-v">
+  Enable verbose output for debugging.
+</ParamField>
+
+## Command Help
+
+Run any command with `--help` to see usage information:
+
+```bash
+$ buttondown --help
+$ buttondown login --help
+$ buttondown pull --help
+```
+
+## Getting Your API Key
+
+To use the Buttondown CLI, you'll need an API key:
+
+1. Log in to your [Buttondown account](https://buttondown.com)
+2. Navigate to Settings → API
+3. Copy your API key
+4. Run `buttondown login --api-key=YOUR_KEY`
+
+Your API key is stored securely in your system's configuration directory and will be used for all subsequent commands.

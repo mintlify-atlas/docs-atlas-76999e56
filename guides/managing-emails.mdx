@@ -1,0 +1,457 @@
+---
+title: Managing Emails
+description: Create, edit, and organize your newsletter emails locally
+---
+
+The Buttondown CLI makes it easy to manage your newsletter emails as Markdown files with YAML frontmatter, enabling a local-first workflow with your favorite tools.
+
+## Creating New Emails
+
+Use the `create` command to generate a new draft email:
+
+```bash
+buttondown create "My First Newsletter"
+```
+
+This creates a new file at `emails/my-first-newsletter.md`:
+
+```markdown emails/my-first-newsletter.md
+---
+subject: My First Newsletter
+status: draft
+email_type: public
+slug: my-first-newsletter
+created: 2024-03-15T10:30:00.000Z
+modified: 2024-03-15T10:30:00.000Z
+---
+
+Write your email content here...
+```
+
+<Note>
+The slug is automatically generated from the title by converting to lowercase and replacing non-alphanumeric characters with hyphens.
+</Note>
+
+### How Create Works
+
+From `src/commands/create.tsx:23`:
+
+```typescript
+const slug = title
+  .toLowerCase()
+  .replaceAll(/[^a-z\d]+/g, "-")
+  .replaceAll(/(^-|-$)/g, "");
+
+const filePath = path.join(emailsDir, `${slug}.md`);
+```
+
+The command:
+1. Creates the `emails/` directory if it doesn't exist
+2. Generates a URL-safe slug from the title
+3. Checks if a file with that slug already exists
+4. Creates a new Markdown file with default frontmatter
+
+## Email File Structure
+
+Emails are stored as Markdown files with YAML frontmatter:
+
+```markdown
+---
+# Required fields
+subject: Your email subject line
+
+# Status: draft, scheduled, or sent
+status: draft
+
+# Type: public, private, or premium
+email_type: public
+
+# URL-friendly identifier
+slug: email-slug
+
+# Optional fields
+id: email_abc123           # Buttondown ID (added after first push)
+publish_date: 2024-03-20T10:00:00Z
+description: Email preview text
+image: https://example.com/og-image.png
+canonical_url: https://example.com/blog/post
+featured: false
+commenting_mode: enabled   # enabled, disabled, or paid_only
+
+# Metadata (custom key-value pairs)
+metadata:
+  campaign: spring-2024
+  category: announcement
+
+# Filters (subscriber targeting)
+filters:
+  predicate: and
+  filters:
+    - field: tags
+      operator: contains
+      value: premium
+  groups: []
+
+# Related emails
+related_email_ids:
+  - email_xyz789
+  - email_def456
+
+# Attachments
+attachments:
+  - https://example.com/file.pdf
+  - https://example.com/document.zip
+---
+
+# Email content starts here
+
+This is your email body written in **Markdown**.
+
+You can use all standard Markdown features:
+
+- Lists
+- **Bold** and *italic*
+- [Links](https://example.com)
+- Images
+
+![Hero Image](../media/hero.png)
+```
+
+## Frontmatter Fields
+
+### Core Fields
+
+<ParamField path="subject" type="string" required>
+  The email subject line that subscribers will see in their inbox.
+</ParamField>
+
+<ParamField path="status" type="string" default="draft">
+  Email status: `draft`, `scheduled`, or `sent`.
+</ParamField>
+
+<ParamField path="email_type" type="string" default="public">
+  Audience type: `public`, `private`, or `premium`.
+</ParamField>
+
+<ParamField path="slug" type="string" required>
+  URL-friendly identifier used in web archive links.
+</ParamField>
+
+### Optional Fields
+
+<ParamField path="id" type="string">
+  Buttondown's unique identifier. Automatically added after first push. Don't modify this manually.
+</ParamField>
+
+<ParamField path="publish_date" type="string">
+  ISO 8601 timestamp for when to send/publish the email.
+  
+  ```yaml
+  publish_date: 2024-03-20T15:30:00Z
+  ```
+</ParamField>
+
+<ParamField path="description" type="string">
+  Preview text shown in email clients and web archives.
+</ParamField>
+
+<ParamField path="image" type="string">
+  Open Graph image URL for social media sharing.
+</ParamField>
+
+<ParamField path="canonical_url" type="string">
+  Original URL if this email is republished content.
+</ParamField>
+
+<ParamField path="featured" type="boolean" default="false">
+  Whether to feature this email prominently in your web archive.
+</ParamField>
+
+<ParamField path="commenting_mode" type="string" default="enabled">
+  Comment settings: `enabled`, `disabled`, or `paid_only`.
+</ParamField>
+
+<ParamField path="metadata" type="object">
+  Custom key-value pairs for organizing and filtering emails.
+  
+  ```yaml
+  metadata:
+    campaign: product-launch
+    category: feature-update
+    internal_id: "2024-Q1-003"
+  ```
+</ParamField>
+
+<ParamField path="filters" type="object">
+  Subscriber targeting rules. See [Subscriber Filters](#subscriber-filters) below.
+</ParamField>
+
+<ParamField path="related_email_ids" type="array">
+  List of related email IDs to show in the web archive.
+  
+  ```yaml
+  related_email_ids:
+    - email_abc123
+    - email_def456
+  ```
+</ParamField>
+
+<ParamField path="attachments" type="array">
+  URLs of files to attach to the email.
+  
+  ```yaml
+  attachments:
+    - https://example.com/report.pdf
+    - https://example.com/slides.pptx
+  ```
+</ParamField>
+
+## Subscriber Filters
+
+Target specific subscribers using filter rules:
+
+```yaml
+filters:
+  predicate: and  # or "or"
+  filters:
+    - field: tags
+      operator: contains
+      value: premium
+    - field: email
+      operator: ends_with
+      value: "@company.com"
+  groups: []
+```
+
+### Filter Fields
+
+- `tags` - Subscriber tags
+- `email` - Email address
+- `metadata` - Subscriber metadata
+- `subscription_date` - When they subscribed
+- `referrer_url` - How they found you
+
+### Filter Operators
+
+- `contains` / `does_not_contain`
+- `equals` / `does_not_equal`
+- `starts_with` / `ends_with`
+- `greater_than` / `less_than`
+
+## Working with Email Content
+
+### Using Markdown
+
+Write your email body using standard Markdown:
+
+```markdown
+# Main Headline
+
+Welcome to this week's newsletter! Here's what we're covering:
+
+1. **New feature launch** - We've added dark mode
+2. **Community spotlight** - Meet our power users
+3. **Tips & tricks** - Keyboard shortcuts
+
+## Feature Launch
+
+We're excited to announce dark mode!
+
+![Dark Mode Screenshot](../media/dark-mode.png)
+
+[Try it now](https://example.com/settings)
+```
+
+### Adding Images
+
+Reference images from your `media/` directory using relative paths:
+
+```markdown
+![Alt text](../media/image-name.png)
+```
+
+<Tip>
+When you push, the CLI automatically uploads the image and converts the path to a Buttondown URL.
+</Tip>
+
+### Using Variables
+
+Buttondown supports template variables:
+
+```markdown
+Hello {{ subscriber.name }},
+
+Thanks for subscribing!
+
+Unsubscribe: {{ unsubscribe_url }}
+View online: {{ view_online_url }}
+```
+
+Common variables:
+- `{{ subscriber.name }}` - Subscriber's name
+- `{{ subscriber.email }}` - Subscriber's email
+- `{{ unsubscribe_url }}` - Unsubscribe link
+- `{{ view_online_url }}` - Web archive link
+- `{{ manage_subscription_url }}` - Preferences page
+
+### Including Snippets
+
+Reference reusable snippets:
+
+```markdown
+{{ snippet.footer }}
+{{ snippet.social-links }}
+```
+
+See [Working with Snippets](/guides/working-with-snippets) for more details.
+
+## Editing Existing Emails
+
+Pull emails from Buttondown to edit them locally:
+
+<Steps>
+  <Step title="Pull content">
+    ```bash
+    buttondown pull
+    ```
+  </Step>
+  
+  <Step title="Edit the email file">
+    Open any email in `emails/` with your text editor:
+    
+    ```bash
+    code emails/weekly-update.md
+    ```
+  </Step>
+  
+  <Step title="Push changes">
+    ```bash
+    buttondown push
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+Never modify the `id` field manually. This is Buttondown's unique identifier and changing it will cause the CLI to create a duplicate email.
+</Warning>
+
+## Organizing Emails
+
+You can organize emails in subdirectories:
+
+```
+emails/
+├── drafts/
+│   ├── idea-1.md
+│   └── idea-2.md
+├── series/
+│   ├── onboarding-day-1.md
+│   ├── onboarding-day-2.md
+│   └── onboarding-day-3.md
+└── sent/
+    ├── 2024-03-01-weekly.md
+    └── 2024-03-08-weekly.md
+```
+
+The CLI will find all `.md` files recursively in the `emails/` directory.
+
+## Email Lifecycle
+
+### Draft → Scheduled → Sent
+
+```markdown
+# 1. Start as draft
+---
+status: draft
+---
+
+# 2. Schedule for sending
+---
+status: scheduled
+publish_date: 2024-03-20T10:00:00Z
+---
+
+# 3. After sending
+---
+status: sent
+publish_date: 2024-03-20T10:00:00Z  # When it was sent
+---
+```
+
+## Validation
+
+The CLI validates email files when reading them. From `src/sync/emails.ts:76`:
+
+```typescript
+export function deserialize(content: string): {
+  email: Partial<Email>;
+  isValid: boolean;
+  error?: string;
+} {
+  const parts = content.split("---");
+  if (parts.length < 3) {
+    return {
+      email: { body: content },
+      isValid: false,
+      error: "Invalid format (missing frontmatter)",
+    };
+  }
+  // ...
+}
+```
+
+Common validation errors:
+- Missing frontmatter delimiters (`---`)
+- Invalid YAML syntax
+- Missing required fields
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use descriptive slugs">
+    Choose clear, descriptive slugs that make sense in your web archive URL:
+    
+    ```yaml
+    # Good
+    slug: march-2024-product-updates
+    
+    # Not ideal
+    slug: newsletter-123
+    ```
+  </Accordion>
+  
+  <Accordion title="Keep images in media/">
+    Always store images in the `media/` directory and use relative paths:
+    
+    ```markdown
+    ![Logo](../media/logo.png)  ✓
+    ![Logo](&lt;absolute-path&gt;/logo.png)  ✗
+    ```
+  </Accordion>
+  
+  <Accordion title="Preview before pushing">
+    Use a Markdown previewer to check formatting before pushing to Buttondown.
+  </Accordion>
+  
+  <Accordion title="Add metadata for organization">
+    Use the `metadata` field to organize and filter emails:
+    
+    ```yaml
+    metadata:
+      series: onboarding
+      week: 1
+      category: tutorial
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Push Content" icon="arrow-up" href="/guides/pushing-content">
+    Push your emails to Buttondown
+  </Card>
+  <Card title="Manage Media" icon="image" href="/guides/managing-media">
+    Work with images and attachments
+  </Card>
+</CardGroup>

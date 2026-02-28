@@ -1,0 +1,131 @@
+---
+title: buttondown login
+description: Configure your Buttondown API key for authentication
+---
+
+The `login` command stores your Buttondown API key locally so you don't need to pass it with every command.
+
+## Usage
+
+```bash
+buttondown login [options]
+```
+
+## Interactive Mode
+
+Run `buttondown login` without flags to enter your API key interactively:
+
+```bash
+$ buttondown login
+Please enter your Buttondown API key:
+> your-api-key-here
+✓ Successfully configured API key!
+```
+
+## Non-Interactive Mode
+
+Provide your API key directly with the `--api-key` flag:
+
+```bash
+$ buttondown login --api-key=your-api-key
+✓ Successfully configured API key!
+```
+
+## Options
+
+<ParamField path="--api-key" type="string" shorthand="-k">
+  Your Buttondown API key. If provided, skips the interactive prompt.
+  
+  Get your API key from [Settings → API](https://buttondown.com/settings/programming) in your Buttondown account.
+</ParamField>
+
+<ParamField path="--force" type="boolean" shorthand="-f" default={false}>
+  Force re-login even if already authenticated. Use this to switch to a different API key.
+</ParamField>
+
+## Already Logged In
+
+If you're already logged in, the command will let you know:
+
+```bash
+$ buttondown login
+✓ You're already logged in!
+
+To use a different API key, run: buttondown login --force
+```
+
+## Changing API Keys
+
+To log in with a different API key, use the `--force` flag:
+
+```bash
+$ buttondown login --force
+Please enter your Buttondown API key:
+> new-api-key-here
+✓ Successfully configured API key!
+```
+
+Or combine with `--api-key`:
+
+```bash
+$ buttondown login --force --api-key=new-api-key
+✓ Successfully configured API key!
+```
+
+## Where is the API Key Stored?
+
+Your API key is stored in your system's configuration directory using [Configstore](https://www.npmjs.com/package/configstore):
+
+- **macOS**: `~/Library/Preferences/buttondown-cli-nodejs/`
+- **Linux**: `~/.config/buttondown-cli-nodejs/`
+- **Windows**: `%APPDATA%\buttondown-cli-nodejs\`
+
+The API key is stored as plain text in this file. Keep your configuration directory secure.
+
+## Security Best Practices
+
+- Never commit your API key to version control
+- Don't share your API key with others
+- Rotate your API key regularly from [Buttondown settings](https://buttondown.com/settings/programming)
+- If you suspect your key has been compromised, regenerate it immediately in Buttondown
+
+## Error Handling
+
+If the API key is empty or invalid:
+
+```bash
+$ buttondown login --api-key=""
+API key cannot be empty
+```
+
+The `login` command validates that the key is not empty, but it doesn't verify the key with Buttondown. You'll discover if the key is invalid when you run `pull` or `push` commands.
+
+## Examples
+
+### First-time setup
+
+```bash
+$ buttondown login --api-key=bd_abcdef123456
+✓ Successfully configured API key!
+
+$ buttondown pull
+pulling
+emails pulled: 0 updated, 5 created, 0 deleted, 0 failed
+```
+
+### Switch accounts
+
+```bash
+$ buttondown login --force
+Please enter your Buttondown API key:
+> bd_different_account_key
+✓ Successfully configured API key!
+```
+
+## Next Steps
+
+After logging in:
+
+- Run [buttondown pull](/commands/pull) to download your existing content
+- Run [buttondown create](/commands/create) to start a new email
+- Run [buttondown push](/commands/push) to upload local changes

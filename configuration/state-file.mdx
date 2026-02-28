@@ -1,0 +1,352 @@
+---
+title: State File
+description: Understanding the .buttondown.json state file format and usage
+---
+
+The `.buttondown.json` file is automatically created and managed by the Buttondown CLI to track synchronization state between your local files and Buttondown. This file is crucial for efficient syncing and preventing duplicate uploads.
+
+## Location
+
+The state file is located at the root of your Buttondown directory:
+
+```
+buttondown/
+├── .buttondown.json    ← State file
+├── emails/
+└── media/
+```
+
+If you're using a custom directory, the state file will be there:
+
+```bash
+buttondown pull --directory=./my-newsletter
+# Creates: ./my-newsletter/.buttondown.json
+```
+
+## Purpose
+
+The state file serves several important purposes:
+
+1. **Media Tracking**: Maps local media files to their Buttondown URLs and IDs
+2. **Duplicate Prevention**: Prevents re-uploading files that already exist
+3. **Reference Resolution**: Enables converting between relative paths and absolute URLs
+4. **Sync Efficiency**: Allows the CLI to determine what needs to be synced
+
+## File Format
+
+The state file is a JSON file with the following structure:
+
+```json
+{
+  "syncedImages": {
+    "image-id-1": {
+      "id": "image-id-1",
+      "localPath": "/absolute/path/to/buttondown/media/header.png",
+      "url": "https://buttondown.s3.amazonaws.com/images/abc123/header.png",
+      "filename": "header.png"
+    },
+    "image-id-2": {
+      "id": "image-id-2",
+      "localPath": "/absolute/path/to/buttondown/media/diagram.jpg",
+      "url": "https://buttondown.s3.amazonaws.com/images/def456/diagram.jpg",
+      "filename": "diagram.jpg"
+    }
+  }
+}
+```
+
+## Structure Details
+
+### Root Object
+
+The root object contains a single property:
+
+<ParamField path="syncedImages" type="object" required>
+  A mapping of image IDs to their sync information. Each key is a unique image ID from Buttondown.
+</ParamField>
+
+### SyncedImage Object
+
+Each entry in `syncedImages` contains the following fields:
+
+<ParamField path="id" type="string" required>
+  The unique identifier for the image in Buttondown. This matches the key in the parent object.
+  
+  **Example:** `"abc123-def456-789"`
+</ParamField>
+
+<ParamField path="localPath" type="string" required>
+  The absolute path to the file on your local filesystem. This is used to match local files with their remote counterparts.
+  
+  **Example:** `"/Users/jane/projects/newsletter/buttondown/media/banner.png"`
+  
+  **Note:** This is always an absolute path, even though emails reference media using relative paths.
+</ParamField>
+
+<ParamField path="url" type="string" required>
+  The full URL where the image is hosted on Buttondown's servers. This is the URL that appears in published emails.
+  
+  **Example:** `"https://buttondown.s3.amazonaws.com/images/abc123/banner.png"`
+</ParamField>
+
+<ParamField path="filename" type="string" required>
+  The original filename of the media file. This is used when downloading files from Buttondown.
+  
+  **Example:** `"banner.png"`
+</ParamField>
+
+## Example State File
+
+Here's a complete example with multiple synced images:
+
+```json
+{
+  "syncedImages": {
+    "01234567-89ab-cdef-0123-456789abcdef": {
+      "id": "01234567-89ab-cdef-0123-456789abcdef",
+      "localPath": "/home/user/newsletter/buttondown/media/welcome-banner.png",
+      "url": "https://buttondown.s3.amazonaws.com/images/user123/welcome-banner.png",
+      "filename": "welcome-banner.png"
+    },
+    "abcdef01-2345-6789-abcd-ef0123456789": {
+      "id": "abcdef01-2345-6789-abcd-ef0123456789",
+      "localPath": "/home/user/newsletter/buttondown/media/charts/revenue.png",
+      "url": "https://buttondown.s3.amazonaws.com/images/user123/revenue.png",
+      "filename": "revenue.png"
+    },
+    "fedcba98-7654-3210-fedc-ba9876543210": {
+      "id": "fedcba98-7654-3210-fedc-ba9876543210",
+      "localPath": "/home/user/newsletter/buttondown/media/logo.svg",
+      "url": "https://buttondown.s3.amazonaws.com/images/user123/logo.svg",
+      "filename": "logo.svg"
+    }
+  }
+}
+```
+
+## How It's Used
+
+### During Pull Operations
+
+When you run `buttondown pull`, the CLI:
+
+1. Downloads all images from Buttondown
+2. Saves them to the `media/` directory
+3. Records their IDs, URLs, and local paths in `.buttondown.json`
+4. Replaces absolute URLs in emails with relative paths
+
+**Example transformation:**
+
+**Before (from Buttondown):**
+```markdown
+![Banner](https://buttondown.s3.amazonaws.com/images/abc123/banner.png)
+```
+
+**After (in local file):**
+```markdown
+![Banner](../media/banner.png)
+```
+
+### During Push Operations
+
+When you run `buttondown push`, the CLI:
+
+1. Scans emails for relative image references (e.g., `../media/image.png`)
+2. Checks if the local file is already tracked in `.buttondown.json`
+3. If tracked: Uses the existing URL
+4. If not tracked: Uploads the file and adds it to `.buttondown.json`
+5. Replaces relative paths with absolute URLs before sending to Buttondown
+
+**Example transformation:**
+
+**Before (local file):**
+```markdown
+![New diagram](../media/diagram.png)
+```
+
+**After (sent to Buttondown):**
+```markdown
+![New diagram](https://buttondown.s3.amazonaws.com/images/abc123/diagram.png)
+```
+
+### Avoiding Duplicate Uploads
+
+The state file prevents the same file from being uploaded multiple times:
+
+```bash
+# First push - uploads image
+buttondown push
+# Image added to .buttondown.json
+
+# Second push - reuses existing URL
+buttondown push
+# No upload needed, URL retrieved from .buttondown.json
+```
+
+## Managing the State File
+
+### Version Control
+
+**You should commit `.buttondown.json` to version control.** This allows:
+
+- Team members to share sync state
+- Consistent image URLs across environments
+- Avoiding duplicate uploads when switching machines
+
+```bash
+git add .buttondown.json
+git commit -m "Update sync state"
+```
+
+### Manual Editing
+
+**Generally, you should not manually edit this file.** The CLI manages it automatically. However, if you need to:
+
+- Ensure valid JSON syntax
+- Keep the structure consistent
+- Use absolute paths for `localPath`
+- Match the `id` field with the object key
+
+### Resetting State
+
+If the state file becomes corrupted or out of sync, you can delete it:
+
+```bash
+rm .buttondown.json
+```
+
+Then run `buttondown pull` to rebuild it:
+
+```bash
+buttondown pull
+```
+
+**Warning:** This will re-download all media files and may result in duplicate uploads if you subsequently push.
+
+### Moving Directories
+
+If you move your Buttondown directory, the absolute paths in `.buttondown.json` will be incorrect. Fix this by:
+
+1. Delete the state file
+2. Run `buttondown pull` to recreate it with correct paths
+
+Or use a script to update paths:
+
+```javascript
+import fs from 'fs/promises';
+
+const state = JSON.parse(await fs.readFile('.buttondown.json', 'utf-8'));
+const oldBase = '/old/path/to/buttondown';
+const newBase = '/new/path/to/buttondown';
+
+for (const image of Object.values(state.syncedImages)) {
+  image.localPath = image.localPath.replace(oldBase, newBase);
+}
+
+await fs.writeFile('.buttondown.json', JSON.stringify(state, null, 2));
+```
+
+## Common Issues
+
+### Missing State File
+
+**Symptom:** No `.buttondown.json` file after running `buttondown pull`
+
+**Cause:** The directory may not have write permissions, or the pull failed
+
+**Solution:** Check directory permissions and run `buttondown pull` again
+
+### Incorrect Image URLs
+
+**Symptom:** Images in pushed emails have wrong URLs
+
+**Cause:** State file paths don't match actual file locations
+
+**Solution:** Delete `.buttondown.json` and run `buttondown pull` to rebuild
+
+### Duplicate Uploads
+
+**Symptom:** Same images uploaded multiple times with different IDs
+
+**Cause:** State file not shared across team members or machines
+
+**Solution:** 
+- Commit `.buttondown.json` to version control
+- Pull latest state before pushing changes
+- Ensure all team members use the same directory structure
+
+### Large State File
+
+**Symptom:** `.buttondown.json` is very large (>1MB)
+
+**Cause:** Many synced images over time
+
+**Impact:** This is normal and shouldn't cause issues. The file is read/written infrequently.
+
+## Advanced Usage
+
+### Programmatic Access
+
+You can read the state file programmatically:
+
+```javascript
+import fs from 'fs/promises';
+
+const state = JSON.parse(
+  await fs.readFile('./buttondown/.buttondown.json', 'utf-8')
+);
+
+// Get all synced images
+const images = Object.values(state.syncedImages);
+
+// Find image by filename
+const logo = images.find(img => img.filename === 'logo.png');
+console.log(logo.url);
+
+// Get all image URLs
+const urls = images.map(img => img.url);
+```
+
+### Custom Image Organization
+
+If you reorganize your `media/` directory, update the state file:
+
+```javascript
+import fs from 'fs/promises';
+import path from 'path';
+
+const state = JSON.parse(await fs.readFile('.buttondown.json', 'utf-8'));
+
+for (const image of Object.values(state.syncedImages)) {
+  // Move from media/ to media/images/
+  const oldPath = image.localPath;
+  const newPath = oldPath.replace('/media/', '/media/images/');
+  
+  // Update state
+  image.localPath = newPath;
+  
+  // Move actual file
+  await fs.rename(oldPath, newPath);
+}
+
+await fs.writeFile('.buttondown.json', JSON.stringify(state, null, 2));
+```
+
+### Validating State
+
+Ensure all local files exist:
+
+```javascript
+import fs from 'fs/promises';
+
+const state = JSON.parse(await fs.readFile('.buttondown.json', 'utf-8'));
+
+for (const [id, image] of Object.entries(state.syncedImages)) {
+  try {
+    await fs.access(image.localPath);
+    console.log(`✓ ${image.filename}`);
+  } catch {
+    console.log(`✗ Missing: ${image.filename} (${id})`);
+  }
+}
+```

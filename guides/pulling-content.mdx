@@ -1,0 +1,204 @@
+---
+title: Pulling Content from Buttondown
+description: Learn how to sync your Buttondown newsletter content to local files
+---
+
+The `pull` command downloads your newsletter content from Buttondown and saves it to local files, making it easy to work with your content offline or integrate with version control.
+
+## How Pull Works
+
+When you run `buttondown pull`, the CLI performs a synchronized workflow:
+
+<Steps>
+  <Step title="Pull Base Resources">
+    Downloads automations, newsletter settings, and snippets from the Buttondown API and saves them as local files.
+  </Step>
+  
+  <Step title="Pull and Download Images">
+    Fetches all images from your media library and downloads them to the `media/` directory. The CLI builds a mapping between remote URLs and local file paths.
+  </Step>
+  
+  <Step title="Pull Emails with Image Conversion">
+    Downloads all emails and automatically converts absolute image URLs to relative paths that reference your local `media/` directory.
+  </Step>
+  
+  <Step title="Write Sync State">
+    Saves a `.buttondown-sync.json` file that tracks which images have been synced, enabling efficient future pushes.
+  </Step>
+</Steps>
+
+## Basic Usage
+
+Pull all content from your newsletter:
+
+```bash
+buttondown pull
+```
+
+This creates the following directory structure:
+
+```
+my-newsletter/
+├── emails/           # All your newsletter emails as .md files
+├── media/            # Downloaded images from your media library
+├── automations/      # Automation configurations as .json files
+├── snippets/         # Reusable content snippets as .md files
+├── newsletter.json   # Newsletter settings
+└── .buttondown-sync.json  # Sync state (tracks image mappings)
+```
+
+## What Gets Pulled
+
+### Emails
+
+Emails are saved as Markdown files with YAML frontmatter:
+
+```markdown emails/welcome-email.md
+---
+id: abc123
+subject: Welcome to our newsletter!
+email_type: public
+status: draft
+slug: welcome-email
+publish_date: 2024-03-15T10:00:00Z
+---
+
+Hello and welcome!
+
+![Welcome image](../media/welcome.png)
+```
+
+<Note>
+Absolute image URLs from Buttondown are automatically converted to relative paths pointing to your local `media/` directory.
+</Note>
+
+### Media
+
+All images from your Buttondown media library are downloaded to `media/` with their original filenames:
+
+```
+media/
+├── header-logo.png
+├── welcome-banner.jpg
+└── footer-icon.svg
+```
+
+### Automations
+
+Automations are saved as JSON files named by their slugified name:
+
+```json automations/welcome-series.json
+{
+  "id": "auto123",
+  "name": "Welcome Series",
+  "status": "active",
+  "trigger": {
+    "type": "subscriber_created"
+  },
+  "actions": [
+    {
+      "type": "send_email",
+      "delay": 0,
+      "email_id": "welcome-001"
+    }
+  ]
+}
+```
+
+### Snippets
+
+Snippets are saved as Markdown files with frontmatter:
+
+```markdown snippets/footer.md
+---
+id: snip123
+name: Standard Footer
+---
+
+Thanks for reading!
+
+Unsubscribe: {{ unsubscribe_url }}
+```
+
+### Newsletter Settings
+
+Your newsletter configuration is saved as `newsletter.json`:
+
+```json newsletter.json
+{
+  "name": "My Newsletter",
+  "description": "Weekly insights on technology",
+  "author": "Jane Doe",
+  "email_address": "hello@example.com"
+}
+```
+
+## Understanding Image Conversion
+
+The pull command intelligently handles images:
+
+1. **Remote URLs to Local Paths**: Images referenced in emails like `https://buttondown.s3.amazonaws.com/images/abc123.png` are converted to relative paths like `../media/abc123.png`
+
+2. **Sync State Tracking**: The `.buttondown-sync.json` file maintains a mapping:
+
+```json .buttondown-sync.json
+{
+  "syncedImages": {
+    "img_abc123": {
+      "id": "img_abc123",
+      "localPath": "/path/to/my-newsletter/media/header.png",
+      "url": "https://buttondown.s3.amazonaws.com/images/header.png",
+      "filename": "header.png"
+    }
+  }
+}
+```
+
+3. **Relative Paths**: Email content is updated so you can reference images locally:
+
+```markdown
+<!-- Before pull (remote) -->
+![Logo](https://buttondown.s3.amazonaws.com/images/logo.png)
+
+<!-- After pull (local) -->
+![Logo](../media/logo.png)
+```
+
+<Tip>
+This conversion allows you to edit emails offline and preview images locally before pushing changes back to Buttondown.
+</Tip>
+
+## Pull Results
+
+After pulling, you'll see a summary:
+
+```
+automations pulled: 2 updated, 0 created, 0 deleted, 0 failed
+images pulled: 15 updated, 0 created, 0 deleted, 0 failed
+emails pulled: 24 updated, 0 created, 0 deleted, 0 failed
+newsletter pulled: 1 updated, 0 created, 0 deleted, 0 failed
+snippets pulled: 3 updated, 0 created, 0 deleted, 0 failed
+
+All content saved to: /path/to/my-newsletter
+```
+
+## Working with Pulled Content
+
+Once content is pulled, you can:
+
+- Edit emails in your favorite text editor
+- Track changes with Git
+- Preview Markdown locally
+- Search across all content with standard tools
+- Automate workflows with scripts
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Push Changes" icon="arrow-up" href="/guides/pushing-content">
+    Learn how to push your local changes back to Buttondown
+  </Card>
+  <Card title="Manage Emails" icon="envelope" href="/guides/managing-emails">
+    Create and edit newsletter emails locally
+  </Card>
+</CardGroup>

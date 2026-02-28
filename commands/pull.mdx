@@ -1,0 +1,232 @@
+---
+title: buttondown pull
+description: Download emails and media from Buttondown to your local directory
+---
+
+The `pull` command downloads your newsletter content from Buttondown and saves it to a local directory.
+
+## Usage
+
+```bash
+buttondown pull [options]
+```
+
+## What Gets Downloaded
+
+The `pull` command downloads:
+
+1. **Emails** - All your newsletter emails as Markdown files with frontmatter
+2. **Media** - All uploaded images and files
+3. **Automations** - Your automation sequences (if any)
+4. **Newsletter settings** - Basic newsletter configuration
+5. **Snippets** - Reusable content snippets
+
+## Basic Example
+
+```bash
+$ buttondown pull
+pulling
+automations pulled: 0 updated, 2 created, 0 deleted, 0 failed
+newsletter pulled: 1 updated, 0 created, 0 deleted, 0 failed
+snippets pulled: 0 updated, 3 created, 0 deleted, 0 failed
+images pulled: 0 updated, 5 created, 0 deleted, 0 failed
+emails pulled: 0 updated, 12 created, 0 deleted, 0 failed
+All content saved to: ./buttondown
+```
+
+## Options
+
+<ParamField path="--api-key" type="string" shorthand="-k">
+  Your Buttondown API key. Required if you haven't run `buttondown login`.
+  
+  If you've already logged in, the stored API key will be used automatically.
+</ParamField>
+
+<ParamField path="--base-url" type="string" shorthand="-b" default="https://api.buttondown.com/v1">
+  The Buttondown API base URL.
+  
+  Only needed if you're using a self-hosted Buttondown instance or a custom API endpoint.
+</ParamField>
+
+<ParamField path="--directory" type="string" shorthand="-d" default="./buttondown">
+  The directory where content will be saved.
+  
+  The CLI will create this directory if it doesn't exist, along with subdirectories for emails, media, etc.
+</ParamField>
+
+## Directory Structure
+
+After running `pull`, your directory will look like:
+
+```
+buttondown/
+├── emails/
+│   ├── welcome-email.md
+│   ├── weekly-update-1.md
+│   └── weekly-update-2.md
+├── media/
+│   ├── header-image.png
+│   └── screenshot.jpg
+├── automations.json
+├── newsletter.json
+├── snippets.json
+└── .buttondown-sync.json
+```
+
+### Email Files
+
+Each email is saved as a Markdown file with YAML frontmatter:
+
+```markdown
+---
+subject: Welcome to my newsletter!
+status: published
+email_type: public
+slug: welcome-email
+publish_date: 2024-01-15T10:00:00Z
+created: 2024-01-15T09:30:00Z
+modified: 2024-01-15T10:00:00Z
+---
+
+Welcome! This is the body of your email.
+
+![Header image](../media/header-image.png)
+```
+
+### Media Files
+
+Images and other media are downloaded to the `media/` directory. Image URLs in email bodies are automatically converted to relative paths.
+
+### Sync State
+
+The `.buttondown-sync.json` file tracks which images have been synced. This file is used by the `push` command to avoid re-uploading unchanged media.
+
+## Image URL Conversion
+
+When pulling emails, absolute Buttondown image URLs are converted to relative paths:
+
+```markdown
+<!-- Remote URL in Buttondown -->
+![Logo](https://buttondown-media.s3.amazonaws.com/abc123/logo.png)
+
+<!-- Converted to relative path locally -->
+![Logo](../media/logo.png)
+```
+
+This makes it easier to work with images locally and keeps your content portable.
+
+## Authentication
+
+The `pull` command requires authentication. You can provide your API key in two ways:
+
+### Using stored credentials (recommended)
+
+```bash
+# First time: log in
+$ buttondown login --api-key=your-api-key
+
+# Then pull without specifying the key
+$ buttondown pull
+```
+
+### Providing API key directly
+
+```bash
+$ buttondown pull --api-key=your-api-key
+```
+
+## Custom Directory
+
+Pull content to a specific directory:
+
+```bash
+$ buttondown pull --directory=./my-newsletter
+pulling
+emails pulled: 0 updated, 12 created, 0 deleted, 0 failed
+All content saved to: ./my-newsletter
+```
+
+## Operation Results
+
+The pull command shows statistics for each resource type:
+
+- **updated** - Existing local files that were modified
+- **created** - New files downloaded
+- **deleted** - Local files removed (if they no longer exist in Buttondown)
+- **failed** - Operations that encountered errors
+
+## Error Handling
+
+### Missing API key
+
+```bash
+$ buttondown pull
+Error: --api-key is required for the pull command, or run 'buttondown login' first
+```
+
+### Invalid API key
+
+```bash
+$ buttondown pull --api-key=invalid
+Error: Authentication failed. Check your API key.
+```
+
+### Network errors
+
+```bash
+$ buttondown pull
+Error: Failed to connect to Buttondown API. Check your internet connection.
+```
+
+## Examples
+
+### First-time pull
+
+```bash
+$ buttondown login --api-key=bd_abc123
+$ buttondown pull
+pulling
+automations pulled: 0 updated, 0 created, 0 deleted, 0 failed
+newsletter pulled: 0 updated, 1 created, 0 deleted, 0 failed
+snippets pulled: 0 updated, 0 created, 0 deleted, 0 failed
+images pulled: 0 updated, 3 created, 0 deleted, 0 failed
+emails pulled: 0 updated, 5 created, 0 deleted, 0 failed
+All content saved to: ./buttondown
+```
+
+### Sync updates
+
+```bash
+$ buttondown pull
+pulling
+automations pulled: 0 updated, 0 created, 0 deleted, 0 failed
+newsletter pulled: 1 updated, 0 created, 0 deleted, 0 failed
+snippets pulled: 0 updated, 0 created, 0 deleted, 0 failed
+images pulled: 0 updated, 1 created, 0 deleted, 0 failed
+emails pulled: 2 updated, 1 created, 0 deleted, 0 failed
+All content saved to: ./buttondown
+```
+
+### Pull to custom directory with custom API URL
+
+```bash
+$ buttondown pull \
+  --directory=./newsletter-backup \
+  --base-url=https://custom-buttondown.example.com/v1 \
+  --api-key=bd_custom_key
+```
+
+## Next Steps
+
+After pulling your content:
+
+- Edit email files locally using your preferred text editor
+- Run [buttondown create](/commands/create) to add new draft emails
+- Run [buttondown push](/commands/push) to upload your changes back to Buttondown
+
+## Best Practices
+
+- **Pull before editing** - Always pull the latest content before making local changes to avoid conflicts
+- **Regular syncs** - Pull regularly to stay in sync with changes made via the Buttondown web interface
+- **Version control** - Consider using Git to track changes to your local newsletter content
+- **Backup directory** - Use a custom directory for backups: `buttondown pull --directory=./backup-$(date +%Y%m%d)`

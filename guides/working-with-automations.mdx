@@ -1,0 +1,699 @@
+---
+title: Working with Automations
+description: Create and manage email automations locally with JSON files
+---
+
+Automations allow you to send emails automatically based on triggers and conditions. The Buttondown CLI lets you manage automations as JSON files in your local folder.
+
+## Automation Files
+
+Automations are stored in the `automations/` directory as JSON files:
+
+```
+my-newsletter/
+├── automations/
+│   ├── welcome-series.json
+│   ├── re-engagement.json
+│   └── premium-onboarding.json
+├── emails/
+└── media/
+```
+
+## Automation Structure
+
+Each automation is a JSON file with the following structure:
+
+```json automations/welcome-series.json
+{
+  "id": "auto_abc123",
+  "name": "Welcome Series",
+  "status": "active",
+  "trigger": {
+    "type": "subscriber_created"
+  },
+  "actions": [
+    {
+      "type": "send_email",
+      "delay": 0,
+      "email_id": "welcome-day-1"
+    },
+    {
+      "type": "send_email",
+      "delay": 86400,
+      "email_id": "welcome-day-2"
+    },
+    {
+      "type": "send_email",
+      "delay": 172800,
+      "email_id": "welcome-day-3"
+    }
+  ],
+  "filters": {
+    "predicate": "and",
+    "filters": [],
+    "groups": []
+  },
+  "metadata": {
+    "series": "onboarding",
+    "version": "2.0"
+  },
+  "should_evaluate_filter_after_delay": false
+}
+```
+
+## Automation Fields
+
+<ParamField path="id" type="string">
+  Buttondown's unique identifier. Automatically added after first push. Don't modify manually.
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  The automation name displayed in your Buttondown dashboard.
+</ParamField>
+
+<ParamField path="status" type="string" required>
+  Automation status: `active`, `paused`, or `archived`.
+</ParamField>
+
+<ParamField path="trigger" type="object" required>
+  What event starts the automation. See [Triggers](#triggers) below.
+</ParamField>
+
+<ParamField path="actions" type="array" required>
+  List of actions to perform. See [Actions](#actions) below.
+</ParamField>
+
+<ParamField path="filters" type="object">
+  Subscriber targeting rules. See [Filters](#filters) below.
+</ParamField>
+
+<ParamField path="metadata" type="object">
+  Custom key-value pairs for organizing automations.
+  
+  ```json
+  "metadata": {
+    "category": "onboarding",
+    "owner": "marketing-team"
+  }
+  ```
+</ParamField>
+
+<ParamField path="should_evaluate_filter_after_delay" type="boolean" default="false">
+  If true, filters are re-evaluated after each action delay. This allows you to stop sending if a subscriber no longer matches the filter.
+</ParamField>
+
+## Triggers
+
+Triggers define when an automation starts:
+
+### Subscriber Created
+
+Runs when someone subscribes:
+
+```json
+{
+  "trigger": {
+    "type": "subscriber_created"
+  }
+}
+```
+
+### Email Opened
+
+Runs when a subscriber opens a specific email:
+
+```json
+{
+  "trigger": {
+    "type": "email_opened",
+    "email_id": "welcome-email"
+  }
+}
+```
+
+### Email Clicked
+
+Runs when a subscriber clicks a link in a specific email:
+
+```json
+{
+  "trigger": {
+    "type": "email_clicked",
+    "email_id": "announcement",
+    "url": "https://example.com/pricing"
+  }
+}
+```
+
+### Tag Added
+
+Runs when a specific tag is added to a subscriber:
+
+```json
+{
+  "trigger": {
+    "type": "tag_added",
+    "tag": "premium"
+  }
+}
+```
+
+### Custom Event
+
+Runs when a custom event occurs:
+
+```json
+{
+  "trigger": {
+    "type": "custom_event",
+    "event_name": "course_completed"
+  }
+}
+```
+
+## Actions
+
+Actions define what happens when the automation runs:
+
+### Send Email
+
+Send a specific email after a delay:
+
+```json
+{
+  "type": "send_email",
+  "delay": 86400,
+  "email_id": "follow-up-day-2"
+}
+```
+
+- `delay`: Seconds to wait before sending (0 = immediate)
+- `email_id`: The email's slug or Buttondown ID
+
+<Note>
+Delays are in seconds:
+- 1 hour = 3600
+- 1 day = 86400
+- 1 week = 604800
+- 30 days = 2592000
+</Note>
+
+### Add Tag
+
+Add a tag to the subscriber:
+
+```json
+{
+  "type": "add_tag",
+  "delay": 0,
+  "tag": "completed-onboarding"
+}
+```
+
+### Remove Tag
+
+Remove a tag from the subscriber:
+
+```json
+{
+  "type": "remove_tag",
+  "delay": 0,
+  "tag": "trial-user"
+}
+```
+
+### Update Metadata
+
+Update subscriber metadata:
+
+```json
+{
+  "type": "update_metadata",
+  "delay": 0,
+  "metadata": {
+    "onboarding_completed": "2024-03-15",
+    "cohort": "march-2024"
+  }
+}
+```
+
+### Multiple Actions
+
+Combine multiple actions in sequence:
+
+```json
+{
+  "actions": [
+    {
+      "type": "send_email",
+      "delay": 0,
+      "email_id": "welcome"
+    },
+    {
+      "type": "send_email",
+      "delay": 86400,
+      "email_id": "day-2-tips"
+    },
+    {
+      "type": "send_email",
+      "delay": 259200,
+      "email_id": "day-3-resources"
+    },
+    {
+      "type": "add_tag",
+      "delay": 604800,
+      "tag": "onboarding-complete"
+    }
+  ]
+}
+```
+
+## Filters
+
+Target specific subscribers using filter rules:
+
+```json
+{
+  "filters": {
+    "predicate": "and",
+    "filters": [
+      {
+        "field": "tags",
+        "operator": "contains",
+        "value": "premium"
+      },
+      {
+        "field": "email",
+        "operator": "ends_with",
+        "value": "@company.com"
+      }
+    ],
+    "groups": []
+  }
+}
+```
+
+### Filter Predicates
+
+- `and`: All filters must match
+- `or`: At least one filter must match
+
+### Filter Fields
+
+- `tags` - Subscriber tags
+- `email` - Email address
+- `metadata` - Subscriber metadata
+- `subscription_date` - When they subscribed
+- `referrer_url` - Referral source
+
+### Filter Operators
+
+- `contains` / `does_not_contain`
+- `equals` / `does_not_equal`
+- `starts_with` / `ends_with`
+- `greater_than` / `less_than`
+
+## Common Automation Patterns
+
+### Welcome Series
+
+Onboard new subscribers with a sequence of emails:
+
+```json automations/welcome-series.json
+{
+  "name": "Welcome Series",
+  "status": "active",
+  "trigger": {
+    "type": "subscriber_created"
+  },
+  "actions": [
+    {
+      "type": "send_email",
+      "delay": 0,
+      "email_id": "welcome"
+    },
+    {
+      "type": "send_email",
+      "delay": 86400,
+      "email_id": "getting-started"
+    },
+    {
+      "type": "send_email",
+      "delay": 259200,
+      "email_id": "best-practices"
+    },
+    {
+      "type": "add_tag",
+      "delay": 604800,
+      "tag": "welcomed"
+    }
+  ]
+}
+```
+
+### Re-engagement Campaign
+
+Re-engage inactive subscribers:
+
+```json automations/re-engagement.json
+{
+  "name": "Re-engagement Campaign",
+  "status": "active",
+  "trigger": {
+    "type": "tag_added",
+    "tag": "inactive"
+  },
+  "actions": [
+    {
+      "type": "send_email",
+      "delay": 0,
+      "email_id": "we-miss-you"
+    },
+    {
+      "type": "send_email",
+      "delay": 604800,
+      "email_id": "last-chance"
+    }
+  ],
+  "filters": {
+    "predicate": "and",
+    "filters": [
+      {
+        "field": "tags",
+        "operator": "does_not_contain",
+        "value": "premium"
+      }
+    ]
+  }
+}
+```
+
+### Product Launch Drip
+
+Nurture interest after a product announcement:
+
+```json automations/product-launch.json
+{
+  "name": "Product Launch Drip",
+  "status": "active",
+  "trigger": {
+    "type": "email_clicked",
+    "email_id": "product-announcement",
+    "url": "https://example.com/new-product"
+  },
+  "actions": [
+    {
+      "type": "add_tag",
+      "delay": 0,
+      "tag": "interested-in-product"
+    },
+    {
+      "type": "send_email",
+      "delay": 86400,
+      "email_id": "product-features"
+    },
+    {
+      "type": "send_email",
+      "delay": 259200,
+      "email_id": "customer-stories"
+    },
+    {
+      "type": "send_email",
+      "delay": 432000,
+      "email_id": "special-offer"
+    }
+  ]
+}
+```
+
+### Conditional Filter Evaluation
+
+Stop sending if subscriber upgrades:
+
+```json automations/trial-sequence.json
+{
+  "name": "Trial User Sequence",
+  "status": "active",
+  "trigger": {
+    "type": "tag_added",
+    "tag": "trial"
+  },
+  "actions": [
+    {
+      "type": "send_email",
+      "delay": 0,
+      "email_id": "trial-start"
+    },
+    {
+      "type": "send_email",
+      "delay": 604800,
+      "email_id": "trial-reminder"
+    },
+    {
+      "type": "send_email",
+      "delay": 1209600,
+      "email_id": "trial-ending"
+    }
+  ],
+  "filters": {
+    "predicate": "and",
+    "filters": [
+      {
+        "field": "tags",
+        "operator": "contains",
+        "value": "trial"
+      },
+      {
+        "field": "tags",
+        "operator": "does_not_contain",
+        "value": "paid"
+      }
+    ]
+  },
+  "should_evaluate_filter_after_delay": true
+}
+```
+
+<Tip>
+With `should_evaluate_filter_after_delay: true`, the automation stops sending emails if the subscriber gets the "paid" tag during the sequence.
+</Tip>
+
+## Managing Automations
+
+### Pulling Automations
+
+Download your automations from Buttondown:
+
+```bash
+buttondown pull
+```
+
+Automations are saved to `automations/` with slugified filenames based on their names.
+
+### Creating New Automations
+
+Create a new JSON file in `automations/`:
+
+```bash
+touch automations/new-automation.json
+```
+
+Edit the file with your automation configuration (without an `id` field for new automations):
+
+```json automations/new-automation.json
+{
+  "name": "New Automation",
+  "status": "active",
+  "trigger": {
+    "type": "subscriber_created"
+  },
+  "actions": [
+    {
+      "type": "send_email",
+      "delay": 0,
+      "email_id": "welcome"
+    }
+  ]
+}
+```
+
+### Pushing Automations
+
+Upload your automations to Buttondown:
+
+```bash
+buttondown push
+```
+
+The CLI:
+- **Creates** new automations (without an `id`)
+- **Updates** existing automations (with an `id`)
+
+### Editing Automations
+
+Edit the JSON file directly:
+
+```bash
+code automations/welcome-series.json
+```
+
+Then push your changes:
+
+```bash
+buttondown push
+```
+
+## File Naming
+
+Automation filenames are generated by slugifying the automation name:
+
+```typescript
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+```
+
+Examples:
+- "Welcome Series" → `welcome-series.json`
+- "Re-engagement Campaign" → `re-engagement-campaign.json`
+- "Product Launch (2024)" → `product-launch-2024.json`
+
+## Validation
+
+The CLI validates automation files when reading them. From `src/sync/automations.ts:55`:
+
+```typescript
+export function deserialize(content: string): {
+  automation: Partial<Automation>;
+  isValid: boolean;
+  error?: string;
+} {
+  try {
+    const parsed = JSON.parse(content);
+    // ...
+    if (!automation.name) {
+      return {
+        automation,
+        isValid: false,
+        error: "Missing required field: name",
+      };
+    }
+    return { automation, isValid: true };
+  } catch {
+    return {
+      automation: {},
+      isValid: false,
+      error: "Invalid JSON",
+    };
+  }
+}
+```
+
+Common validation errors:
+- Invalid JSON syntax
+- Missing required field: `name`
+- Invalid trigger type
+- Invalid action type
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Test with paused status first">
+    Create new automations with `"status": "paused"` to test them before activating:
+    
+    ```json
+    {
+      "name": "New Automation",
+      "status": "paused",
+      // ...
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Use descriptive names">
+    Choose clear automation names that explain their purpose:
+    
+    ```json
+    ✓ "Welcome Series - 3 Day Onboarding"
+    ✓ "Re-engage Inactive Subscribers"
+    ✗ "Automation 1"
+    ✗ "Test"
+    ```
+  </Accordion>
+  
+  <Accordion title="Add metadata for organization">
+    Use metadata to categorize and track automations:
+    
+    ```json
+    "metadata": {
+      "category": "onboarding",
+      "owner": "marketing",
+      "created_date": "2024-03-15",
+      "version": "2.1"
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="Document delay calculations">
+    Add comments (in metadata) explaining delay timing:
+    
+    ```json
+    {
+      "type": "send_email",
+      "delay": 604800,
+      "email_id": "week-1-followup",
+      "metadata": {
+        "delay_note": "7 days = 604800 seconds"
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### "Missing required field: name"
+
+Make sure every automation has a `name` field:
+
+```json
+{
+  "name": "My Automation",
+  // ...
+}
+```
+
+### "Invalid JSON"
+
+Check for:
+- Missing commas between fields
+- Trailing commas in arrays or objects
+- Unquoted string values
+- Unclosed brackets or braces
+
+Use a JSON validator or editor with syntax highlighting.
+
+### "Email not found"
+
+Make sure the `email_id` in actions matches an existing email slug:
+
+```json
+{
+  "type": "send_email",
+  "email_id": "welcome"  // Must match an email's slug field
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Manage Emails" icon="envelope" href="/guides/managing-emails">
+    Create emails to use in automations
+  </Card>
+  <Card title="Push Content" icon="arrow-up" href="/guides/pushing-content">
+    Deploy your automations to Buttondown
+  </Card>
+</CardGroup>

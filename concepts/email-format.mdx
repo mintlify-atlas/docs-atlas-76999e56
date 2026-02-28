@@ -1,0 +1,284 @@
+---
+title: Email Format
+description: Understanding the Markdown format used for newsletter emails
+---
+
+Emails in the Buttondown CLI are stored as Markdown files with YAML frontmatter, providing a clean and version-control-friendly format for your newsletter content.
+
+## File Format
+
+Each email file follows this structure:
+
+```markdown
+---
+id: abc123xyz
+subject: Welcome to my newsletter!
+email_type: public
+status: published
+slug: welcome-email
+publish_date: 2024-01-15T10:00:00Z
+description: A warm welcome to new subscribers
+---
+
+# Welcome!
+
+Thanks for subscribing to my newsletter.
+
+![Header image](../media/welcome-header.png)
+
+I'm excited to have you here!
+```
+
+## Frontmatter Fields
+
+The frontmatter section (between the `---` delimiters) contains metadata about the email. The CLI supports the following fields, defined in `src/sync/emails.ts:41-57`:
+
+### Core Fields
+
+<ParamField path="id" type="string" required>
+  Unique identifier for the email. Set by Buttondown when the email is created. Required for updating existing emails.
+</ParamField>
+
+<ParamField path="subject" type="string" required>
+  The email subject line. This is what subscribers see in their inbox.
+</ParamField>
+
+<ParamField path="email_type" type="string" default="public">
+  The type of email. Options:
+  - `public` - Regular newsletter email (default)
+  - `private` - Subscriber-only content
+  - `premium` - Premium subscriber content
+</ParamField>
+
+<ParamField path="status" type="string">
+  Publication status. Options:
+  - `draft` - Not yet sent
+  - `scheduled` - Scheduled for future sending
+  - `published` - Already sent to subscribers
+</ParamField>
+
+<ParamField path="slug" type="string">
+  URL-friendly identifier for the email. Used in web archives and for the filename when syncing.
+</ParamField>
+
+<ParamField path="publish_date" type="string (ISO 8601)">
+  When the email was or will be published. Format: `YYYY-MM-DDTHH:mm:ssZ`
+  
+  Example: `2024-01-15T10:00:00Z`
+</ParamField>
+
+### Optional Fields
+
+<ParamField path="description" type="string" optional>
+  A brief description of the email content. Used for SEO and previews.
+</ParamField>
+
+<ParamField path="image" type="string (URL)" optional>
+  Featured image URL for the email. Displayed in web archives and social shares.
+</ParamField>
+
+<ParamField path="canonical_url" type="string (URL)" optional>
+  Canonical URL if this email was originally published elsewhere.
+</ParamField>
+
+<ParamField path="secondary_id" type="string" optional>
+  Secondary identifier for the email, if needed for external systems.
+</ParamField>
+
+<ParamField path="metadata" type="object" optional>
+  Custom metadata as key-value pairs. Useful for storing additional data.
+  
+  ```yaml
+  metadata:
+    category: tutorial
+    reading_time: 5
+  ```
+</ParamField>
+
+<ParamField path="featured" type="boolean" default={false}>
+  Whether this email should be featured in your archive.
+</ParamField>
+
+<ParamField path="commenting_mode" type="string" default="enabled">
+  Controls comments on the email. Options:
+  - `enabled` - Comments allowed (default)
+  - `disabled` - Comments not allowed
+</ParamField>
+
+<ParamField path="filters" type="object" optional>
+  Subscriber filters for targeted sending.
+  
+  ```yaml
+  filters:
+    predicate: and
+    filters: []
+    groups: []
+  ```
+</ParamField>
+
+<ParamField path="related_email_ids" type="array" optional>
+  Array of related email IDs.
+  
+  ```yaml
+  related_email_ids:
+    - email_123
+    - email_456
+  ```
+</ParamField>
+
+## Email Body
+
+The content after the second `---` delimiter is the email body, written in Markdown.
+
+### Supported Markdown
+
+Buttondown supports standard Markdown syntax:
+
+- **Headers**: `# H1`, `## H2`, `### H3`
+- **Bold**: `**bold text**`
+- **Italic**: `*italic text*`
+- **Links**: `[link text](https://example.com)`
+- **Images**: `![alt text](image-url)`
+- **Lists**: Both ordered (`1. Item`) and unordered (`- Item`)
+- **Code**: Inline `` `code` `` and code blocks
+- **Blockquotes**: `> Quote`
+
+### Image References
+
+The CLI handles image references in a special way to support local development:
+
+#### Relative Paths (Local)
+
+When working locally, reference images using relative paths:
+
+```markdown
+![Chart showing growth](../media/growth-chart.png)
+```
+
+#### Absolute URLs (Remote)
+
+When pushing to Buttondown, the CLI automatically converts relative paths to absolute URLs:
+
+```markdown
+![Chart showing growth](https://buttondown.s3.amazonaws.com/images/abc123.png)
+```
+
+<Note>
+You don't need to manually convert between relative and absolute paths. The CLI handles this automatically during push and pull operations.
+</Note>
+
+## Serialization and Deserialization
+
+The CLI includes functions to convert between Buttondown API format and Markdown files.
+
+### Deserialize (API → Markdown)
+
+From `src/sync/emails.ts:76-122`, the `deserialize` function:
+
+1. Splits content by `---` delimiters
+2. Parses YAML frontmatter
+3. Extracts email body
+4. Validates required fields
+
+```typescript
+export function deserialize(content: string): {
+  email: Partial<Email>;
+  isValid: boolean;
+  error?: string;
+}
+```
+
+### Serialize (Markdown → API)
+
+From `src/sync/emails.ts:132-163`, the `serialize` function:
+
+1. Separates frontmatter from body
+2. Filters out empty/default values
+3. Generates clean YAML
+4. Combines into final Markdown format
+
+```typescript
+export function serialize(email: Partial<Email & FrontMatterFields>): string
+```
+
+### Default Values
+
+The CLI omits fields with default values to keep files clean. Default values from `src/sync/emails.ts:59-71`:
+
+```typescript
+const FRONT_MATTER_FIELD_TO_DEFAULT_VALUE = {
+  email_type: "public",
+  featured: false,
+  commenting_mode: "enabled",
+  filters: {
+    filters: [],
+    groups: [],
+    predicate: "and",
+  },
+  related_email_ids: [],
+};
+```
+
+## Creating New Emails
+
+You can create email files in two ways:
+
+### 1. Using the CLI
+
+```bash
+buttondown create --title="My New Email"
+```
+
+This creates a new draft email locally with minimal frontmatter.
+
+### 2. Manual Creation
+
+Create a new `.md` file in the `emails/` directory:
+
+```markdown
+---
+subject: My Manually Created Email
+status: draft
+email_type: public
+---
+
+Your email content here...
+```
+
+<Warning>
+When manually creating emails, omit the `id` field. Buttondown will generate one when you first push the email.
+</Warning>
+
+## Editing Emails
+
+Edit email files directly in your favorite text editor:
+
+1. Open the `.md` file
+2. Modify frontmatter fields or body content
+3. Save the file
+4. Run `buttondown push` to sync changes to Buttondown
+
+<Tip>
+The CLI only uploads emails that have changed, so you can safely edit multiple files and push them all at once.
+</Tip>
+
+## Special Handling
+
+### Editor Mode Sigil
+
+The CLI adds a special comment to email bodies when pushing to Buttondown:
+
+```html
+<!-- buttondown-editor-mode: plaintext -->
+```
+
+This tells Buttondown to treat the content as Markdown. The CLI automatically removes this when pulling emails down.
+
+### Image Path Conversion
+
+The CLI automatically handles image path conversions:
+
+- **Pull**: Converts `https://buttondown.s3.amazonaws.com/images/abc123.png` → `../media/header.png`
+- **Push**: Converts `../media/header.png` → `https://buttondown.s3.amazonaws.com/images/abc123.png`
+
+This is done by maintaining a mapping in `.buttondown.json` (see [Sync Workflow](/concepts/sync-workflow)).

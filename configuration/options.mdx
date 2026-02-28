@@ -1,0 +1,174 @@
+---
+title: CLI Options
+description: Command-line options and flags for the Buttondown CLI
+---
+
+The Buttondown CLI supports various command-line options that can be used with any command. All options have both long form (`--option`) and short form (`-o`) variants.
+
+## Global Options
+
+These options can be used with any command:
+
+<ParamField path="--api-key" type="string" default="(from stored credentials)">
+  Your Buttondown API key. If not provided, the CLI will use the stored credentials from `buttondown login`.
+  
+  **Short form:** `-k`
+  
+  **Example:**
+  ```bash
+  buttondown pull --api-key=your-api-key-here
+  ```
+  
+  **Note:** For security, it's recommended to use `buttondown login` to store your API key rather than passing it on the command line.
+</ParamField>
+
+<ParamField path="--base-url" type="string" default="https://api.buttondown.com/v1">
+  The base URL for the Buttondown API. This is useful for testing or if you're using a custom Buttondown instance.
+  
+  **Short form:** `-b`
+  
+  **Example:**
+  ```bash
+  buttondown pull --base-url=https://api.buttondown.com/v1
+  ```
+</ParamField>
+
+<ParamField path="--directory" type="string" default="./buttondown">
+  The directory where Buttondown content will be stored or read from. This determines where emails and media are synced.
+  
+  **Short form:** `-d`
+  
+  **Example:**
+  ```bash
+  buttondown pull --directory=./my-newsletter
+  buttondown push --directory=./my-newsletter
+  ```
+  
+  **Note:** The directory will be created automatically if it doesn't exist.
+</ParamField>
+
+<ParamField path="--force" type="boolean" default="false">
+  Force the operation without confirmation prompts. Useful for automation and scripts.
+  
+  **Short form:** `-f`
+  
+  **Example:**
+  ```bash
+  buttondown login --force
+  ```
+</ParamField>
+
+<ParamField path="--verbose" type="boolean" default="false">
+  Enable verbose output for debugging purposes. Shows detailed information about what the CLI is doing.
+  
+  **Short form:** `-v`
+  
+  **Example:**
+  ```bash
+  buttondown pull --verbose
+  ```
+</ParamField>
+
+## Command-Specific Options
+
+### Create Command
+
+<ParamField path="--title" type="string" required>
+  The title for the new email draft. This is required when using the `create` command.
+  
+  **Short form:** `-t`
+  
+  **Example:**
+  ```bash
+  buttondown create --title="My New Newsletter Issue"
+  ```
+</ParamField>
+
+### Login Command
+
+The `login` command accepts the `--api-key` option to provide your API key directly:
+
+```bash
+buttondown login --api-key=your-api-key-here
+```
+
+If you don't provide the API key, you'll be prompted to enter it interactively.
+
+## Help and Version
+
+<ParamField path="--help" type="boolean">
+  Display help information about available commands and options.
+  
+  **Short form:** `-h`
+  
+  **Example:**
+  ```bash
+  buttondown --help
+  ```
+</ParamField>
+
+<ParamField path="--version" type="boolean">
+  Display the current version of the Buttondown CLI.
+  
+  **Example:**
+  ```bash
+  buttondown --version
+  ```
+</ParamField>
+
+## Configuration File
+
+The CLI stores your API key and other credentials in a configuration file managed by the [conf](https://github.com/sindresorhus/conf) package. This file is stored in your system's standard configuration directory:
+
+- **macOS:** `~/Library/Preferences/buttondown-cli-nodejs/`
+- **Linux:** `~/.config/buttondown-cli-nodejs/`
+- **Windows:** `%APPDATA%\buttondown-cli-nodejs\`
+
+The configuration stores:
+
+- `apiKey`: Your Buttondown API key (set via `buttondown login`)
+- `baseUrl`: The API base URL (optional)
+- `username`: Your Buttondown username (optional)
+
+## Examples
+
+### Basic Usage
+
+```bash
+# Login with API key
+buttondown login --api-key=your-api-key
+
+# Pull content to default directory
+buttondown pull
+
+# Pull to custom directory
+buttondown pull --directory=./newsletters
+
+# Push changes back
+buttondown push --directory=./newsletters
+
+# Create new draft
+buttondown create --title="Weekly Update #42"
+```
+
+### Advanced Usage
+
+```bash
+# Use custom API endpoint with verbose logging
+buttondown pull --base-url=https://custom-api.example.com/v1 --verbose
+
+# Force login without confirmation
+buttondown login --api-key=new-key --force
+
+# Multiple options combined
+buttondown pull --directory=./my-content --verbose --force
+```
+
+## Environment Variables
+
+While the CLI doesn't directly read environment variables, you can use shell features to pass them:
+
+```bash
+export BUTTONDOWN_API_KEY="your-api-key"
+buttondown pull --api-key=$BUTTONDOWN_API_KEY
+```

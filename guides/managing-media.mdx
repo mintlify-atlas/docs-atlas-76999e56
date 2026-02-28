@@ -1,0 +1,440 @@
+---
+title: Managing Media
+description: Work with images and media files in your newsletter
+---
+
+The Buttondown CLI handles images and media files automatically, making it easy to reference local files in your emails and sync them with Buttondown's media library.
+
+## Media Directory
+
+All images are stored in the `media/` directory at the root of your newsletter folder:
+
+```
+my-newsletter/
+├── emails/
+├── media/
+│   ├── logo.png
+│   ├── header-2024.jpg
+│   └── product-screenshot.png
+└── .buttondown-sync.json
+```
+
+## How Media Sync Works
+
+The CLI manages a two-way sync between local files and Buttondown's media library:
+
+<Steps>
+  <Step title="Pull: Download Images">
+    When you run `buttondown pull`, all images from your Buttondown media library are downloaded to `media/` and a mapping is created in `.buttondown-sync.json`.
+  </Step>
+  
+  <Step title="Local Editing">
+    You add or reference images in your emails using relative paths like `../media/image.png`.
+  </Step>
+  
+  <Step title="Push: Upload New Images">
+    When you run `buttondown push`, the CLI finds any image references in emails, uploads new images to Buttondown, and converts relative paths to absolute URLs.
+  </Step>
+</Steps>
+
+## Pulling Images
+
+When you pull content, images are automatically downloaded:
+
+```bash
+buttondown pull
+```
+
+```
+images pulled: 15 updated, 0 created, 0 deleted, 0 failed
+```
+
+The CLI:
+1. Fetches all images from Buttondown's `/images` API endpoint
+2. Downloads each image file to `media/`
+3. Preserves original filenames
+4. Creates a sync state mapping
+
+### Image Download Process
+
+From `src/sync/images.ts:99`:
+
+```typescript
+export const LOCAL_IMAGES_RESOURCE: Resource<Image[], Buffer[]> = {
+  async set(value, configuration) {
+    const mediaDir = path.join(configuration.directory, "media");
+    await mkdir(mediaDir, { recursive: true });
+    for (const image of value) {
+      const filename = path.basename(image.image);
+      const localPath = path.join(mediaDir, filename);
+      const response = await fetch(image.image);
+      const arrayBuffer = await response.arrayBuffer();
+      await writeFile(localPath, Buffer.from(arrayBuffer));
+    }
+  },
+};
+```
+
+## Sync State Tracking
+
+The `.buttondown-sync.json` file maintains the connection between local files and remote URLs:
+
+```json .buttondown-sync.json
+{
+  "syncedImages": {
+    "img_abc123": {
+      "id": "img_abc123",
+      "localPath": "/path/to/newsletter/media/hero-image.png",
+      "url": "https://buttondown.s3.amazonaws.com/images/hero-image.png",
+      "filename": "hero-image.png"
+    },
+    "img_def456": {
+      "id": "img_def456",
+      "localPath": "/path/to/newsletter/media/logo.png",
+      "url": "https://buttondown.s3.amazonaws.com/images/logo.png",
+      "filename": "logo.png"
+    }
+  }
+}
+```
+
+<Warning>
+Don't manually edit `.buttondown-sync.json`. The CLI manages this file automatically during pull and push operations.
+</Warning>
+
+## Adding Images to Emails
+
+Reference images from the `media/` directory using relative paths:
+
+```markdown emails/weekly-update.md
+---
+subject: Weekly Update
+---
+
+# This Week's Highlights
+
+![Product Screenshot](../media/product-screenshot.png)
+
+Here's what's new:
+
+![Feature Diagram](../media/diagrams/feature-flow.png)
+```
+
+<Note>
+The path is relative to the `emails/` directory, so you use `../media/` to reference the media folder.
+</Note>
+
+### Why Relative Paths?
+
+Relative paths allow you to:
+- Preview emails locally with proper images
+- Move your newsletter folder without breaking references
+- Work offline
+- Use standard Markdown tools
+
+## Pushing Images
+
+When you push content, new images are automatically uploaded:
+
+```bash
+buttondown push
+```
+
+The CLI:
+1. Scans all email files for image references
+2. Identifies images not yet in the sync state
+3. Uploads new images to Buttondown
+4. Updates the sync state with new mappings
+5. Converts relative paths to absolute URLs in email content
+
+### Image Upload Process
+
+From `src/sync/images.ts:24`:
+
+```typescript
+export async function uploadImage(
+  configuration: Configuration,
+  imagePath: string,
+): Promise<{ id: string; url: string; filename: string }> {
+  const buffer = await readFile(imagePath);
+  const filename = path.basename(imagePath);
+  const ext = path.extname(imagePath).toLowerCase();
+  const mimeType = EXTENSION_TO_MIME[ext] || "application/octet-stream";
+
+  const formData = new FormData();
+  formData.append(
+    "image",
+    new Blob([new Uint8Array(buffer)], { type: mimeType }),
+    filename,
+  );
+
+  const response = await constructClient(configuration).post("/images", {
+    body: formData,
+  });
+
+  return {
+    id: response.data.id,
+    url: response.data.image,
+    filename,
+  };
+}
+```
+
+### Automatic Path Conversion
+
+The push command converts paths automatically:
+
+<CodeGroup>
+```markdown Before Push (Local)
+![Screenshot](../media/dashboard.png)
+```
+
+```markdown After Push (Buttondown)
+![Screenshot](https://buttondown.s3.amazonaws.com/images/dashboard.png)
+```
+</CodeGroup>
+
+## Supported Image Formats
+
+The CLI supports these image formats:
+
+| Format | Extension | MIME Type |
+|--------|-----------|----------|
+| PNG | `.png` | `image/png` |
+| JPEG | `.jpg`, `.jpeg` | `image/jpeg` |
+| GIF | `.gif` | `image/gif` |
+| WebP | `.webp` | `image/webp` |
+| SVG | `.svg` | `image/svg+xml` |
+
+From `src/sync/images.ts:15`:
+
+```typescript
+const EXTENSION_TO_MIME: Record<string, string> = {
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp",
+};
+```
+
+## Working with Media
+
+### Adding a New Image
+
+<Steps>
+  <Step title="Add image to media/">
+    Copy or save your image to the `media/` directory:
+    
+    ```bash
+    cp ~/Downloads/new-feature.png media/
+    ```
+  </Step>
+  
+  <Step title="Reference in email">
+    Use a relative path in your email:
+    
+    ```markdown emails/announcement.md
+    ![New Feature](../media/new-feature.png)
+    ```
+  </Step>
+  
+  <Step title="Push to Buttondown">
+    The image is automatically uploaded:
+    
+    ```bash
+    buttondown push
+    ```
+  </Step>
+</Steps>
+
+### Organizing Images
+
+You can organize images in subdirectories:
+
+```
+media/
+├── logos/
+│   ├── main-logo.png
+│   └── icon.png
+├── screenshots/
+│   ├── dashboard.png
+│   └── settings.png
+└── social/
+    ├── twitter-card.png
+    └── og-image.png
+```
+
+Reference them with the subdirectory:
+
+```markdown
+![Logo](../media/logos/main-logo.png)
+![Dashboard](../media/screenshots/dashboard.png)
+```
+
+### Replacing an Image
+
+To update an image:
+
+1. **Replace the local file** with the same filename:
+   ```bash
+   cp ~/new-version.png media/old-image.png
+   ```
+
+2. **Clear the sync state** (optional) to force re-upload:
+   ```bash
+   # Delete the entire sync state
+   rm .buttondown-sync.json
+   
+   # Or manually edit to remove the specific image entry
+   ```
+
+3. **Push changes**:
+   ```bash
+   buttondown push
+   ```
+
+<Tip>
+If you want to keep the same filename but upload a new version, delete the entry from `.buttondown-sync.json` to trigger a fresh upload.
+</Tip>
+
+## Image Reference Detection
+
+The CLI uses regex to find image references in email content:
+
+```typescript
+const RELATIVE_IMAGE_REFERENCE_REGEX = /!\[([^\]]*)\]\(([^)]+)\)/g;
+```
+
+It detects:
+- Standard Markdown images: `![Alt](path.png)`
+- Relative paths: `../media/image.png`
+- Subdirectory paths: `../media/screenshots/app.png`
+
+It ignores:
+- Absolute URLs: `https://example.com/image.png`
+- Protocol-relative URLs: `//example.com/image.png`
+
+From `src/sync/emails.ts:168`:
+
+```typescript
+export function findRelativeImageReferences(
+  content: string,
+): RelativeImageReference[] {
+  const results: RelativeImageReference[] = [];
+  const regex = new RegExp(RELATIVE_IMAGE_REFERENCE_REGEX);
+  let match = regex.exec(content);
+
+  while (match !== null) {
+    const [fullMatch, altText, imagePath] = match;
+
+    if (!imagePath.startsWith("http") && !imagePath.startsWith("//")) {
+      results.push({
+        match: fullMatch,
+        altText,
+        relativePath: imagePath,
+      });
+    }
+    match = regex.exec(content);
+  }
+
+  return results;
+}
+```
+
+## Attachments
+
+Attachments work differently from embedded images. They're specified in frontmatter as URLs:
+
+```markdown
+---
+subject: Monthly Report
+attachments:
+  - https://example.com/reports/march-2024.pdf
+  - https://example.com/presentations/slides.pptx
+---
+
+Please find attached this month's report and presentation.
+```
+
+<Note>
+Attachments must be publicly accessible URLs. The CLI doesn't upload attachment files - only image files in the `media/` directory are automatically uploaded.
+</Note>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use descriptive filenames">
+    Name images descriptively for easy reference:
+    
+    ```
+    ✓ product-launch-hero.png
+    ✓ march-2024-analytics.png
+    ✗ image1.png
+    ✗ screenshot.png
+    ```
+  </Accordion>
+  
+  <Accordion title="Optimize images before adding">
+    Compress and resize images before adding to `media/` to keep email sizes manageable.
+    
+    - Use WebP for better compression
+    - Resize to appropriate dimensions
+    - Compress with tools like ImageOptim or TinyPNG
+  </Accordion>
+  
+  <Accordion title="Include alt text">
+    Always provide meaningful alt text for accessibility:
+    
+    ```markdown
+    ![Dashboard showing 2,500 subscribers and 45% open rate](../media/analytics.png)
+    ```
+  </Accordion>
+  
+  <Accordion title="Keep media/ organized">
+    Use subdirectories to organize images by type or campaign:
+    
+    ```
+    media/
+    ├── 2024-q1/
+    ├── 2024-q2/
+    ├── brand/
+    └── products/
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### "Image not found"
+
+Make sure:
+- The image file exists in `media/`
+- The relative path is correct (use `../media/` from emails)
+- The filename matches exactly (case-sensitive)
+
+### "Image upload failed"
+
+Check that:
+- The file is a supported image format
+- The file isn't corrupted
+- You have a valid API key with upload permissions
+
+### "Images not downloading"
+
+If images don't download during pull:
+- Check your internet connection
+- Verify the remote images are accessible
+- Ensure you have write permissions in the `media/` directory
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Manage Emails" icon="envelope" href="/guides/managing-emails">
+    Learn how to add images to your emails
+  </Card>
+  <Card title="Push Content" icon="arrow-up" href="/guides/pushing-content">
+    Upload your images to Buttondown
+  </Card>
+</CardGroup>

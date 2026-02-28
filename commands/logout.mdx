@@ -1,0 +1,86 @@
+---
+title: buttondown logout
+description: Clear stored credentials and log out
+---
+
+The `logout` command removes your stored API key and clears all local credentials.
+
+## Usage
+
+```bash
+buttondown logout
+```
+
+## Example
+
+```bash
+$ buttondown logout
+Logged out!
+```
+
+## What Gets Removed
+
+The `logout` command clears your entire Buttondown CLI configuration, including:
+
+- Your API key
+- Your base URL (if customized)
+- Any other stored settings
+
+After logging out, you'll need to run `buttondown login` again before using commands that require authentication.
+
+## No Options
+
+The `logout` command doesn't accept any flags or options. It simply clears your stored credentials.
+
+## When to Use Logout
+
+You might want to log out when:
+
+- Switching to a different Buttondown account
+- Removing credentials from a shared machine
+- Troubleshooting authentication issues
+- Decommissioning a development environment
+
+## After Logging Out
+
+Commands that require authentication will fail:
+
+```bash
+$ buttondown logout
+Logged out!
+
+$ buttondown pull
+Error: --api-key is required for the pull command, or run 'buttondown login' first
+```
+
+You can still use the `create` command since it doesn't require authentication:
+
+```bash
+$ buttondown create --title="Draft Post"
+Created new draft email: ./buttondown/emails/draft-post.md
+```
+
+## Alternative: Using --force with login
+
+If you just want to switch API keys, you don't need to log out first. Use `buttondown login --force` instead:
+
+```bash
+# No need to logout first
+$ buttondown login --force --api-key=new-api-key
+✓ Successfully configured API key!
+```
+
+## Configuration File Location
+
+The logout command removes the configuration file from:
+
+- **macOS**: `~/Library/Preferences/buttondown-cli-nodejs/`
+- **Linux**: `~/.config/buttondown-cli-nodejs/`
+- **Windows**: `%APPDATA%\buttondown-cli-nodejs\`
+
+## Next Steps
+
+After logging out, you'll typically want to:
+
+- Run [buttondown login](/commands/login) to authenticate with a different account
+- Or simply close your terminal if you're done using the CLI

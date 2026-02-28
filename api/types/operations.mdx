@@ -1,0 +1,138 @@
+---
+title: OperationResult
+description: Result type for sync operations tracking changes
+---
+
+The `OperationResult` type tracks the outcome of sync operations, providing detailed counts of what changed during a sync.
+
+## Type Definition
+
+```typescript
+export type OperationResult = {
+  updated: number;
+  created: number;
+  deleted: number;
+  failed: number;
+};
+```
+
+## Properties
+
+<ResponseField name="updated" type="number" required>
+  The number of resources that were modified during the operation. This counts items that already existed and had their content changed.
+</ResponseField>
+
+<ResponseField name="created" type="number" required>
+  The number of new resources that were created during the operation. This counts items that did not previously exist.
+</ResponseField>
+
+<ResponseField name="deleted" type="number" required>
+  The number of resources that were removed during the operation. This counts items that existed before but were deleted.
+</ResponseField>
+
+<ResponseField name="failed" type="number" required>
+  The number of operations that failed during the sync. This includes any errors encountered while processing individual items.
+</ResponseField>
+
+## Usage
+
+Every `Resource.set()` operation returns an `OperationResult`:
+
+```typescript
+const result = await resource.set(data, configuration);
+
+console.log(`Sync complete:
+  Created: ${result.created}
+  Updated: ${result.updated}
+  Deleted: ${result.deleted}
+  Failed: ${result.failed}
+`);
+```
+
+## Combining Results
+
+When syncing multiple resources, you can aggregate results:
+
+```typescript
+function combineResults(...results: OperationResult[]): OperationResult {
+  return results.reduce(
+    (acc, result) => ({
+      updated: acc.updated + result.updated,
+      created: acc.created + result.created,
+      deleted: acc.deleted + result.deleted,
+      failed: acc.failed + result.failed,
+    }),
+    { updated: 0, created: 0, deleted: 0, failed: 0 }
+  );
+}
+
+const pushResult = await pushResource.set(data, config);
+const pullResult = await pullResource.set(data, config);
+const totalResult = combineResults(pushResult, pullResult);
+```
+
+## Success Detection
+
+You can determine if an operation was fully successful:
+
+```typescript
+function isSuccessful(result: OperationResult): boolean {
+  return result.failed === 0;
+}
+
+function hasChanges(result: OperationResult): boolean {
+  return result.created > 0 || result.updated > 0 || result.deleted > 0;
+}
+
+const result = await resource.set(data, config);
+
+if (!isSuccessful(result)) {
+  console.error(`Sync failed: ${result.failed} operations failed`);
+  process.exit(1);
+}
+
+if (!hasChanges(result)) {
+  console.log("No changes detected");
+}
+```
+
+## Zero Result
+
+A zero result indicates no changes were made:
+
+```typescript
+const noChanges: OperationResult = {
+  updated: 0,
+  created: 0,
+  deleted: 0,
+  failed: 0
+};
+```
+
+This is commonly returned when:
+- Local and remote data are already in sync
+- No resources exist to sync
+- The operation was skipped
+
+## Error Handling
+
+The `failed` count tracks errors, but doesn't provide details. Implementations should log errors separately:
+
+```typescript
+async function setWithLogging(
+  value: Model,
+  config: Configuration
+): Promise<OperationResult> {
+  const result = { updated: 0, created: 0, deleted: 0, failed: 0 };
+  
+  try {
+    // ... sync logic
+    result.updated++;
+  } catch (error) {
+    console.error("Failed to sync item:", error);
+    result.failed++;
+  }
+  
+  return result;
+}
+```

@@ -1,0 +1,302 @@
+---
+title: Directory Structure
+description: Understanding the local file structure created by the Buttondown CLI
+---
+
+The Buttondown CLI creates a well-organized directory structure to store your newsletter content, media files, and sync state. This structure mirrors your Buttondown account and makes it easy to work with your content locally.
+
+## Default Structure
+
+When you run `buttondown pull`, the CLI creates the following structure:
+
+```
+buttondown/
+├── .buttondown.json    # Sync state and metadata
+├── emails/             # Newsletter emails as Markdown
+│   ├── welcome-email.md
+│   ├── newsletter-issue-1.md
+│   ├── newsletter-issue-2.md
+│   └── draft-post.md
+└── media/              # Images and attachments
+    ├── header-image.png
+    ├── diagram.jpg
+    └── logo.svg
+```
+
+## Directory Details
+
+### Root Directory
+
+The root directory (default: `./buttondown`) contains all synced content. You can customize this location using the `--directory` flag:
+
+```bash
+buttondown pull --directory=./my-newsletter
+```
+
+### `.buttondown.json`
+
+This hidden file at the root tracks sync state and metadata. It's automatically managed by the CLI and should not be manually edited. See the [State File](/configuration/state-file) documentation for details.
+
+**Important:** This file should be committed to version control to maintain sync state across team members and environments.
+
+### `emails/` Directory
+
+The `emails` directory contains all your newsletter emails as Markdown (`.md`) files. Each file represents a single email from your Buttondown account.
+
+#### File Naming
+
+Email files are named using either the email's slug or ID:
+
+- If the email has a slug: `{slug}.md`
+- If no slug exists: `{id}.md`
+
+Examples:
+```
+emails/welcome-to-my-newsletter.md  # Using slug
+emails/01234567-89ab-cdef.md        # Using ID
+```
+
+#### Email File Format
+
+Each email file contains YAML frontmatter followed by the email body:
+
+```markdown
+---
+id: abc123
+subject: Welcome to My Newsletter
+status: published
+email_type: public
+slug: welcome-to-my-newsletter
+publish_date: 2026-01-15T10:00:00Z
+description: A warm welcome to new subscribers
+image: https://buttondown.s3.amazonaws.com/images/header.png
+featured: false
+commenting_mode: enabled
+---
+
+# Welcome!
+
+Thank you for subscribing to my newsletter.
+
+![Welcome banner](../media/banner.png)
+
+I'm excited to share my thoughts with you.
+```
+
+#### Frontmatter Fields
+
+The following fields are stored in the frontmatter:
+
+- **`id`** (string): Unique identifier from Buttondown
+- **`subject`** (string): Email subject line
+- **`email_type`** (string): Type of email - `public`, `private`, or `premium`
+- **`status`** (string): Publishing status - `draft`, `scheduled`, or `published`
+- **`slug`** (string): URL-friendly identifier
+- **`publish_date`** (string): ISO 8601 timestamp for publication
+- **`description`** (string): Meta description for SEO
+- **`image`** (string): Featured image URL
+- **`canonical_url`** (string): Canonical URL for SEO
+- **`secondary_id`** (number): Alternative identifier
+- **`metadata`** (object): Custom metadata fields
+- **`filters`** (object): Subscriber filters for sending
+- **`commenting_mode`** (string): Comment settings - `enabled`, `disabled`, or `paid_only`
+- **`related_email_ids`** (array): IDs of related emails
+- **`featured`** (boolean): Whether the email is featured
+
+**Note:** Only non-default values are included in the frontmatter to keep files clean.
+
+### `media/` Directory
+
+The `media` directory stores all images and attachments synced from Buttondown. Files are downloaded with their original filenames.
+
+#### Supported File Types
+
+The CLI syncs all media types supported by Buttondown, including:
+
+- Images: `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`
+- Documents: `.pdf`, `.doc`, `.docx`
+- Other: Any file uploaded to Buttondown
+
+#### Organizing Media
+
+You can organize media files into subdirectories:
+
+```
+media/
+├── images/
+│   ├── headers/
+│   │   └── banner.png
+│   └── content/
+│       └── diagram.jpg
+└── documents/
+    └── guide.pdf
+```
+
+When referencing images in emails, use relative paths:
+
+```markdown
+![Header](../media/images/headers/banner.png)
+![Diagram](../media/images/content/diagram.jpg)
+```
+
+## Working with the Structure
+
+### Adding New Content
+
+#### Creating New Emails
+
+Use the `create` command to generate a new email with proper structure:
+
+```bash
+buttondown create --title="My New Post"
+```
+
+Or manually create a file in `emails/` with the required frontmatter:
+
+```markdown
+---
+subject: My New Post
+status: draft
+email_type: public
+---
+
+Your content here...
+```
+
+#### Adding Media Files
+
+Simply place files in the `media/` directory. When you run `buttondown push`, they'll be uploaded to Buttondown and tracked in `.buttondown.json`.
+
+### Editing Content
+
+Edit email files directly in your preferred text editor. The CLI preserves:
+
+- Frontmatter fields
+- Markdown formatting
+- Relative image references
+- Line endings
+
+### Syncing Changes
+
+After making local changes:
+
+```bash
+# Push changes to Buttondown
+buttondown push
+
+# Pull latest from Buttondown
+buttondown pull
+```
+
+## Image References
+
+The CLI supports both absolute and relative image references:
+
+### Relative References (Recommended)
+
+Reference local media files using relative paths:
+
+```markdown
+![Alt text](../media/image.png)
+```
+
+When pushing, the CLI:
+1. Uploads the image to Buttondown
+2. Replaces the relative path with the Buttondown URL
+3. Tracks the mapping in `.buttondown.json`
+
+When pulling, the CLI:
+1. Downloads the image to `media/`
+2. Replaces the Buttondown URL with a relative path
+
+### Absolute URLs
+
+You can also use absolute URLs for external images:
+
+```markdown
+![External](https://example.com/image.png)
+```
+
+These URLs are left unchanged during sync.
+
+## Best Practices
+
+### Version Control
+
+**Commit these:**
+- `.buttondown.json` (tracks sync state)
+- `emails/*.md` (your content)
+- `media/*` (local assets)
+
+**Gitignore pattern:**
+```gitignore
+# Only ignore if you don't want to version media
+# buttondown/media/
+```
+
+### Directory Organization
+
+Keep your structure clean:
+
+- Use descriptive slugs for email files
+- Organize media into subdirectories by type or date
+- Don't manually edit `.buttondown.json`
+- Keep email filenames consistent with slugs
+
+### Collaboration
+
+When working in a team:
+
+1. Commit `.buttondown.json` to share sync state
+2. Pull before making changes: `buttondown pull`
+3. Push after editing: `buttondown push`
+4. Resolve conflicts by comparing frontmatter and body
+
+### Multiple Newsletters
+
+Manage multiple newsletters with separate directories:
+
+```bash
+buttondown pull --directory=./newsletter-a
+buttondown pull --directory=./newsletter-b --api-key=different-key
+```
+
+Each directory maintains its own `.buttondown.json` state file.
+
+## Custom Workflows
+
+### Programmatic Access
+
+The directory structure is designed for programmatic access. You can:
+
+- Parse `.md` files using any YAML/Markdown library
+- Generate emails from templates
+- Batch process media files
+- Automate content generation
+
+Example using Node.js:
+
+```javascript
+import fs from 'fs/promises';
+import yaml from 'yaml';
+
+const content = await fs.readFile('./buttondown/emails/my-email.md', 'utf-8');
+const [_, frontmatter, body] = content.split('---');
+const data = yaml.parse(frontmatter);
+
+console.log(data.subject); // "My Email Subject"
+```
+
+### Build Scripts
+
+Integrate the CLI into your build process:
+
+```json
+{
+  "scripts": {
+    "sync:pull": "buttondown pull --directory=./content",
+    "sync:push": "buttondown push --directory=./content",
+    "build": "npm run sync:pull && npm run build:site"
+  }
+}
+```

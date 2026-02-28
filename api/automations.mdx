@@ -1,0 +1,436 @@
+---
+title: "Automations"
+description: "API reference for automation sync operations"
+---
+
+The automations module handles synchronization of Buttondown automations between the API and local JSON files.
+
+## Overview
+
+Automations are stored locally as JSON files in the `automations/` directory. Each automation defines triggers, actions, and filters for automated newsletter workflows.
+
+## Types
+
+### Automation
+
+Based on the Buttondown API `Automation` schema from OpenAPI specification.
+
+```typescript
+type Automation = components["schemas"]["Automation"]
+```
+
+### SerializedAutomation
+
+Subset of automation fields included in local JSON files:
+
+```typescript
+type SerializedAutomation = Pick<
+  Automation,
+  | "id"
+  | "name"
+  | "status"
+  | "trigger"
+  | "actions"
+  | "filters"
+  | "metadata"
+  | "should_evaluate_filter_after_delay"
+>
+```
+
+#### Fields
+
+<ParamField path="id" type="string">
+  Unique identifier for the automation
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  Human-readable name for the automation
+</ParamField>
+
+<ParamField path="status" type="string">
+  Current status (e.g., "active", "paused")
+</ParamField>
+
+<ParamField path="trigger" type="object">
+  Event that triggers the automation
+</ParamField>
+
+<ParamField path="actions" type="array">
+  Array of actions to execute when triggered
+</ParamField>
+
+<ParamField path="filters" type="object">
+  Subscriber filters to limit automation scope
+</ParamField>
+
+<ParamField path="metadata" type="object">
+  Custom metadata key-value pairs
+</ParamField>
+
+<ParamField path="should_evaluate_filter_after_delay" type="boolean">
+  Whether to re-evaluate filters after delay
+</ParamField>
+
+## Serialization Functions
+
+### serialize()
+
+Converts an automation object to JSON string.
+
+```typescript
+function serialize(automation: Partial<Automation>): string
+```
+
+<ParamField path="automation" type="Partial<Automation>" required>
+  Automation object to serialize
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Formatted JSON string with 2-space indentation
+</ResponseField>
+
+#### Behavior
+
+- Only includes fields defined in `SERIALIZED_FIELDS`
+- Excludes fields with `null` or `undefined` values
+- Formats JSON with 2-space indentation for readability
+
+#### Example
+
+```typescript
+const automation = {
+  id: "auto_123",
+  name: "Welcome Series",
+  status: "active",
+  trigger: { type: "subscriber_created" },
+  actions: [{ type: "send_email", email_id: "email_456" }]
+};
+
+const json = serialize(automation);
+console.log(json);
+// {
+//   "id": "auto_123",
+//   "name": "Welcome Series",
+//   "status": "active",
+//   "trigger": { "type": "subscriber_created" },
+//   "actions": [{ "type": "send_email", "email_id": "email_456" }]
+// }
+```
+
+### deserialize()
+
+Parses JSON string into an automation object.
+
+```typescript
+function deserialize(content: string): {
+  automation: Partial<Automation>;
+  isValid: boolean;
+  error?: string;
+}
+```
+
+<ParamField path="content" type="string" required>
+  JSON string to parse
+</ParamField>
+
+<ResponseField name="automation" type="Partial<Automation>">
+  Parsed automation object
+</ResponseField>
+
+<ResponseField name="isValid" type="boolean">
+  Whether the content was successfully parsed with required fields
+</ResponseField>
+
+<ResponseField name="error" type="string">
+  Error message if parsing failed or validation error
+</ResponseField>
+
+#### Validation
+
+- Must be valid JSON
+- Must include `name` field (returns `isValid: false` if missing)
+- Only extracts fields defined in `SERIALIZED_FIELDS`
+
+#### Example
+
+```typescript
+const json = `{
+  "name": "Welcome Series",
+  "status": "active"
+}`;
+
+const result = deserialize(json);
+
+if (result.isValid) {
+  console.log(result.automation.name); // "Welcome Series"
+} else {
+  console.error(result.error);
+}
+```
+
+## Utility Functions
+
+### slugify()
+
+Converts automation name to filename-safe slug.
+
+```typescript
+function slugify(name: string): string
+```
+
+<ParamField path="name" type="string" required>
+  Automation name to convert
+</ParamField>
+
+<ResponseField name="return" type="string">
+  Lowercase slug with hyphens
+</ResponseField>
+
+#### Example
+
+```typescript
+slugify("Welcome Series")           // "welcome-series"
+slugify("Post-Purchase Follow-up")  // "post-purchase-follow-up"
+slugify("Re-Engagement Campaign!")   // "re-engagement-campaign"
+```
+
+## Resource Objects
+
+### REMOTE_AUTOMATIONS_RESOURCE
+
+Handles automation operations with the Buttondown API.
+
+```typescript
+const REMOTE_AUTOMATIONS_RESOURCE: Resource<Automation[], Automation[]>
+```
+
+#### Methods
+
+**get(configuration)**
+
+Fetches all automations from the API with pagination.
+
+```typescript
+async get(configuration: Configuration): Promise<Automation[]>
+```
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with API credentials
+</ParamField>
+
+<ResponseField name="return" type="Automation[]">
+  Array of all automations
+</ResponseField>
+
+- Automatically handles pagination (100 items per page)
+- Continues until all automations are retrieved
+
+**set(value, configuration)**
+
+Creates or updates automations via the API.
+
+```typescript
+async set(
+  value: Automation[],
+  configuration: Configuration
+): Promise<OperationResult>
+```
+
+<ParamField path="value" type="Automation[]" required>
+  Array of automations to create or update
+</ParamField>
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with API credentials
+</ParamField>
+
+<ResponseField name="return" type="OperationResult">
+  Counts of created, updated, deleted, and failed operations
+</ResponseField>
+
+#### Behavior
+
+- Updates automations that have an `id` field (PATCH)
+- Creates new automations without an `id` field (POST)
+- Returns operation counts in result
+
+#### Example
+
+```typescript
+const automations = [
+  {
+    id: "auto_123",
+    name: "Updated Welcome",
+    status: "active"
+  },
+  {
+    name: "New Campaign",
+    trigger: { type: "subscriber_created" },
+    actions: []
+  }
+];
+
+const result = await REMOTE_AUTOMATIONS_RESOURCE.set(
+  automations,
+  config
+);
+
+console.log(`Updated: ${result.updated}, Created: ${result.created}`);
+// Updated: 1, Created: 1
+```
+
+### LOCAL_AUTOMATIONS_RESOURCE
+
+Handles automation operations with local JSON files.
+
+```typescript
+const LOCAL_AUTOMATIONS_RESOURCE: Resource<Automation[], string[]>
+```
+
+#### Methods
+
+**get(configuration)**
+
+Reads all automations from the `automations/` directory.
+
+```typescript
+async get(configuration: Configuration): Promise<Automation[]>
+```
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with directory path
+</ParamField>
+
+<ResponseField name="return" type="Automation[]">
+  Array of all valid automations from JSON files
+</ResponseField>
+
+- Searches for all `.json` files in `automations/` directory
+- Parses and validates each file
+- Skips invalid files (logs via deserialize error)
+
+**set(value, configuration)**
+
+Writes automations as JSON files to the `automations/` directory.
+
+```typescript
+async set(
+  value: Automation[],
+  configuration: Configuration
+): Promise<OperationResult>
+```
+
+<ParamField path="value" type="Automation[]" required>
+  Array of automations to write
+</ParamField>
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with directory path
+</ParamField>
+
+<ResponseField name="return" type="OperationResult">
+  Operation result with updated count
+</ResponseField>
+
+#### Behavior
+
+- Creates `automations/` directory if it doesn't exist
+- Generates filenames using slugified automation names
+- Format: `automations/{slugified-name}.json`
+- Overwrites existing files with same slug
+
+#### Example
+
+```typescript
+const automations = [
+  { name: "Welcome Series", status: "active" },
+  { name: "Re-Engagement", status: "paused" }
+];
+
+await LOCAL_AUTOMATIONS_RESOURCE.set(automations, config);
+// Creates:
+// - automations/welcome-series.json
+// - automations/re-engagement.json
+```
+
+### AUTOMATIONS_RESOURCE
+
+Combined resource group for automation synchronization.
+
+```typescript
+const AUTOMATIONS_RESOURCE: ResourceGroup<
+  Automation[],
+  Automation[],
+  string[]
+>
+```
+
+#### Properties
+
+<ResponseField name="name" type="string">
+  Resource identifier: `"automations"`
+</ResponseField>
+
+<ResponseField name="remote" type="Resource<Automation[], Automation[]>">
+  Remote API resource handler
+</ResponseField>
+
+<ResponseField name="local" type="Resource<Automation[], string[]>">
+  Local filesystem resource handler
+</ResponseField>
+
+## Usage Patterns
+
+### Pull Automations from Remote
+
+```typescript
+import { AUTOMATIONS_RESOURCE } from "./sync/automations.js";
+
+const config = {
+  baseUrl: "https://api.buttondown.email/v1",
+  apiKey: "your-api-key",
+  directory: "./buttondown-data"
+};
+
+// Fetch from API
+const automations = await AUTOMATIONS_RESOURCE.remote.get(config);
+
+// Save to local files
+await AUTOMATIONS_RESOURCE.local.set(automations, config);
+
+console.log(`Synced ${automations.length} automations`);
+```
+
+### Push Local Changes to Remote
+
+```typescript
+// Read from local files
+const localAutomations = await AUTOMATIONS_RESOURCE.local.get(config);
+
+// Push to API
+const result = await AUTOMATIONS_RESOURCE.remote.set(
+  localAutomations,
+  config
+);
+
+console.log(`Updated: ${result.updated}, Created: ${result.created}`);
+```
+
+## Constants
+
+### SERIALIZED_FIELDS
+
+Array of field names included in JSON serialization:
+
+```typescript
+const SERIALIZED_FIELDS: (keyof SerializedAutomation)[] = [
+  "actions",
+  "filters",
+  "id",
+  "metadata",
+  "name",
+  "should_evaluate_filter_after_delay",
+  "status",
+  "trigger"
+]
+```

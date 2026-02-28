@@ -1,0 +1,522 @@
+---
+title: Working with Snippets
+description: Create and manage reusable content snippets locally
+---
+
+Snippets are reusable pieces of content that you can include in your emails. The Buttondown CLI lets you manage snippets as Markdown files with frontmatter.
+
+## Snippet Files
+
+Snippets are stored in the `snippets/` directory as Markdown files:
+
+```
+my-newsletter/
+├── snippets/
+│   ├── footer.md
+│   ├── social-links.md
+│   ├── unsubscribe.md
+│   └── author-bio.md
+├── emails/
+└── media/
+```
+
+## Snippet Structure
+
+Each snippet is a Markdown file with YAML frontmatter:
+
+```markdown snippets/footer.md
+---
+id: snip_abc123
+name: Standard Footer
+---
+
+Thanks for reading!
+
+If you enjoyed this newsletter, please share it with a friend.
+
+You can [unsubscribe]({{ unsubscribe_url }}) or [update your preferences]({{ manage_subscription_url }}) at any time.
+```
+
+## Frontmatter Fields
+
+<ParamField path="id" type="string">
+  Buttondown's unique identifier. Automatically added after first push. Don't modify manually.
+</ParamField>
+
+<ParamField path="name" type="string" required>
+  The snippet name displayed in your Buttondown dashboard.
+</ParamField>
+
+## Snippet Content
+
+The content after the frontmatter is the snippet body. You can use:
+
+- **Markdown formatting**: Bold, italic, links, lists, etc.
+- **Buttondown variables**: `{{ subscriber.name }}`, `{{ unsubscribe_url }}`, etc.
+- **HTML**: For more complex layouts
+
+### Example Snippets
+
+#### Social Links
+
+```markdown snippets/social-links.md
+---
+name: Social Media Links
+---
+
+Follow us on:
+- [Twitter](https://twitter.com/example)
+- [LinkedIn](https://linkedin.com/company/example)
+- [GitHub](https://github.com/example)
+```
+
+#### Author Bio
+
+```markdown snippets/author-bio.md
+---
+name: Author Bio
+---
+
+**About the Author**
+
+Jane Doe is a software engineer and technical writer. She's passionate about making complex topics accessible and helping developers level up their skills.
+
+Connect with Jane on [Twitter](https://twitter.com/janedoe) or [LinkedIn](https://linkedin.com/in/janedoe).
+```
+
+#### Unsubscribe Footer
+
+```markdown snippets/unsubscribe.md
+---
+name: Unsubscribe Footer
+---
+
+---
+
+You're receiving this email because you subscribed to {{ newsletter.name }}.
+
+[Unsubscribe]({{ unsubscribe_url }}) | [Update preferences]({{ manage_subscription_url }}) | [View in browser]({{ view_online_url }})
+
+{{ newsletter.email_address }}
+```
+
+#### Call to Action
+
+```markdown snippets/cta-upgrade.md
+---
+name: Upgrade CTA
+---
+
+<div style="background: #f0f0f0; padding: 20px; border-radius: 8px; text-align: center;">
+  <h3>Want more content like this?</h3>
+  <p>Upgrade to premium for exclusive tutorials, code samples, and early access to new features.</p>
+  <a href="https://example.com/upgrade" style="background: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Upgrade Now</a>
+</div>
+```
+
+#### Product Highlight
+
+```markdown snippets/product-spotlight.md
+---
+name: Product Spotlight
+---
+
+**This Week's Product Spotlight**
+
+![Product Image](https://example.com/images/product.png)
+
+Check out our latest feature: **Dark Mode**! Now you can work comfortably at any time of day.
+
+[Learn more →](https://example.com/features/dark-mode)
+```
+
+## Using Snippets in Emails
+
+Reference snippets in your emails using the snippet identifier (the filename without extension):
+
+```markdown emails/weekly-update.md
+---
+subject: Weekly Update
+---
+
+# This Week's Highlights
+
+Here's what we've been working on...
+
+{{ snippet.product-spotlight }}
+
+---
+
+{{ snippet.social-links }}
+
+{{ snippet.footer }}
+```
+
+<Note>
+The snippet identifier is the filename without the `.md` extension. For example, `footer.md` becomes `{{ snippet.footer }}`.
+</Note>
+
+## Managing Snippets
+
+### Pulling Snippets
+
+Download your snippets from Buttondown:
+
+```bash
+buttondown pull
+```
+
+Snippets are saved to `snippets/` with filenames based on their identifier.
+
+### Creating New Snippets
+
+Create a new Markdown file in `snippets/`:
+
+```bash
+touch snippets/new-snippet.md
+```
+
+Edit the file with frontmatter and content:
+
+```markdown snippets/new-snippet.md
+---
+name: My New Snippet
+---
+
+Your reusable content here...
+```
+
+### Pushing Snippets
+
+Upload your snippets to Buttondown:
+
+```bash
+buttondown push
+```
+
+The CLI:
+- **Creates** new snippets (without an `id`)
+- **Updates** existing snippets (with an `id`)
+
+### Editing Snippets
+
+Edit the Markdown file directly:
+
+```bash
+code snippets/footer.md
+```
+
+Then push your changes:
+
+```bash
+buttondown push
+```
+
+## Snippet Identifiers
+
+The snippet identifier is derived from the filename:
+
+- `footer.md` → identifier: `footer` → usage: `{{ snippet.footer }}`
+- `social-links.md` → identifier: `social-links` → usage: `{{ snippet.social-links }}`
+- `author-bio.md` → identifier: `author-bio` → usage: `{{ snippet.author-bio }}`
+
+<Warning>
+The identifier is set from the filename, not the frontmatter. Renaming a file changes its identifier, which will break existing references in emails.
+</Warning>
+
+## Sync Process
+
+From `src/sync/snippets.ts:137`:
+
+```typescript
+export const LOCAL_SNIPPETS_RESOURCE: Resource<Snippet[], string[]> = {
+  async get(configuration) {
+    const snippetsDir = path.join(configuration.directory, "snippets");
+    const snippetFiles = await fg("**/*.md", {
+      cwd: snippetsDir,
+      absolute: false,
+    });
+
+    const snippets: Snippet[] = [];
+    for (const snippetFile of snippetFiles) {
+      const content = await readFile(
+        path.join(snippetsDir, snippetFile),
+        "utf8",
+      );
+      const result = deserialize(content);
+      if (result.isValid) {
+        const identifier = path.basename(snippetFile, ".md");
+        snippets.push({ identifier, ...result.snippet } as Snippet);
+      }
+    }
+
+    return snippets;
+  },
+};
+```
+
+The CLI:
+1. Scans all `.md` files in `snippets/`
+2. Parses frontmatter and content
+3. Sets the identifier from the filename
+4. Validates the snippet structure
+
+## Using Variables in Snippets
+
+Snippets can include Buttondown template variables:
+
+### Subscriber Variables
+
+```markdown
+Hello {{ subscriber.name }},
+
+You subscribed on {{ subscriber.creation_date }}.
+```
+
+### Newsletter Variables
+
+```markdown
+You're reading {{ newsletter.name }}.
+
+Send us feedback at {{ newsletter.email_address }}.
+```
+
+### URL Variables
+
+```markdown
+[Unsubscribe]({{ unsubscribe_url }})
+[View online]({{ view_online_url }})
+[Manage preferences]({{ manage_subscription_url }})
+```
+
+### Email Variables
+
+```markdown
+You're reading: {{ email.subject }}
+Published: {{ email.publish_date }}
+```
+
+See the [Buttondown documentation](https://docs.buttondown.email/advanced-features/templates) for all available variables.
+
+## Common Snippet Patterns
+
+### Standard Footer
+
+```markdown snippets/standard-footer.md
+---
+name: Standard Footer
+---
+
+---
+
+Thanks for reading {{ newsletter.name }}!
+
+{{ snippet.social-links }}
+
+[Unsubscribe]({{ unsubscribe_url }}) | [Update preferences]({{ manage_subscription_url }}) | [View in browser]({{ view_online_url }})
+
+{{ newsletter.email_address }} | {{ newsletter.description }}
+```
+
+### Premium Paywall
+
+```markdown snippets/premium-paywall.md
+---
+name: Premium Paywall
+---
+
+---
+
+**This is a preview.** The full article is available to premium subscribers.
+
+<div style="background: linear-gradient(to right, #667eea, #764ba2); color: white; padding: 30px; border-radius: 8px; text-align: center; margin: 20px 0;">
+  <h3 style="margin-top: 0; color: white;">Upgrade to Premium</h3>
+  <p>Get access to all premium content, exclusive tutorials, and support our work.</p>
+  <a href="{{ upgrade_url }}" style="background: white; color: #667eea; padding: 12px 32px; text-decoration: none; border-radius: 4px; display: inline-block; font-weight: bold;">Upgrade Now</a>
+</div>
+```
+
+### Sponsor Message
+
+```markdown snippets/sponsor-message.md
+---
+name: Sponsor Message
+---
+
+---
+
+**Sponsored**
+
+*This newsletter is made possible by our sponsors.*
+
+[Sponsor Name] - Brief description of what they offer and why it's relevant to readers.
+
+[Learn more →](https://sponsor.example.com)
+
+---
+```
+
+### Table of Contents
+
+```markdown snippets/table-of-contents.md
+---
+name: Table of Contents
+---
+
+**In This Issue:**
+
+1. [Feature Announcement](#feature)
+2. [Tutorial: Getting Started](#tutorial)
+3. [Community Highlights](#community)
+4. [Upcoming Events](#events)
+```
+
+## Organizing Snippets
+
+You can organize snippets in subdirectories:
+
+```
+snippets/
+├── footers/
+│   ├── standard.md
+│   ├── minimal.md
+│   └── premium.md
+├── ctas/
+│   ├── upgrade.md
+│   ├── share.md
+│   └── feedback.md
+└── content/
+    ├── author-bio.md
+    ├── social-links.md
+    └── sponsor.md
+```
+
+Identifiers include the subdirectory path:
+
+- `footers/standard.md` → `{{ snippet.footers/standard }}`
+- `ctas/upgrade.md` → `{{ snippet.ctas/upgrade }}`
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Use descriptive identifiers">
+    Choose clear, descriptive filenames that indicate the snippet's purpose:
+    
+    ```
+    ✓ footer-with-social.md
+    ✓ cta-upgrade-premium.md
+    ✗ snippet1.md
+    ✗ temp.md
+    ```
+  </Accordion>
+  
+  <Accordion title="Keep snippets focused">
+    Each snippet should have a single, clear purpose. Break complex content into multiple snippets:
+    
+    ```markdown
+    # Instead of one giant footer snippet:
+    {{ snippet.footer }}
+    
+    # Use composable snippets:
+    {{ snippet.social-links }}
+    {{ snippet.unsubscribe }}
+    {{ snippet.contact-info }}
+    ```
+  </Accordion>
+  
+  <Accordion title="Test variable substitution">
+    Test snippets with variables by sending yourself a preview email to ensure variables render correctly.
+  </Accordion>
+  
+  <Accordion title="Version control your snippets">
+    Track snippet changes in Git to maintain a history:
+    
+    ```bash
+    git add snippets/footer.md
+    git commit -m "Update footer with new social links"
+    ```
+  </Accordion>
+  
+  <Accordion title="Document complex snippets">
+    Add comments in the frontmatter or use the name field to document usage:
+    
+    ```markdown
+    ---
+    name: Premium Paywall (use after 2nd paragraph)
+    ---
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Validation
+
+The CLI validates snippet files when reading them. From `src/sync/snippets.ts:20`:
+
+```typescript
+export function deserialize(content: string): {
+  snippet: Partial<Snippet>;
+  isValid: boolean;
+  error?: string;
+} {
+  const parts = content.split("---");
+  if (parts.length < 3) {
+    return {
+      snippet: { content },
+      isValid: false,
+      error: "Invalid format (missing frontmatter)",
+    };
+  }
+  // ...
+}
+```
+
+Common validation errors:
+- Missing frontmatter delimiters (`---`)
+- Invalid YAML syntax
+- Empty frontmatter
+
+## Troubleshooting
+
+### "Snippet not found"
+
+Make sure:
+- The snippet file exists in `snippets/`
+- The identifier matches the filename (without `.md`)
+- You've pushed the snippet to Buttondown
+
+Example:
+```markdown
+# If you have snippets/footer.md
+{{ snippet.footer }}  ✓
+{{ snippet.Footer }}  ✗ (case-sensitive)
+```
+
+### "Invalid format (missing frontmatter)"
+
+Ensure your snippet has proper frontmatter:
+
+```markdown
+---
+name: Snippet Name
+---
+
+Content here...
+```
+
+### "Snippet renders as literal text"
+
+If `{{ snippet.footer }}` appears as text in your email:
+- Make sure you've pushed the snippet to Buttondown
+- Check that the identifier is correct
+- Verify the email was sent from Buttondown (not just previewed locally)
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Manage Emails" icon="envelope" href="/guides/managing-emails">
+    Learn how to use snippets in your emails
+  </Card>
+  <Card title="Push Content" icon="arrow-up" href="/guides/pushing-content">
+    Deploy your snippets to Buttondown
+  </Card>
+</CardGroup>

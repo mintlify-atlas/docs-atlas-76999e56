@@ -1,0 +1,402 @@
+---
+title: "Newsletter"
+description: "API reference for newsletter configuration sync operations"
+---
+
+The newsletter module handles synchronization of newsletter settings between the Buttondown API and a local JSON file.
+
+## Overview
+
+The newsletter configuration represents the top-level settings for your Buttondown newsletter. Unlike other resources that handle collections, this module manages a single newsletter object.
+
+## Types
+
+### Newsletter
+
+Based on the Buttondown API `Newsletter` schema from OpenAPI specification.
+
+```typescript
+type Newsletter = components["schemas"]["Newsletter"]
+```
+
+Typically includes:
+- `id` - Unique newsletter identifier
+- `username` - Newsletter username/slug
+- `name` - Newsletter display name
+- `description` - Newsletter description
+- `settings` - Various configuration options
+- `creation_date` - When the newsletter was created
+
+And many other configuration fields for branding, behavior, and integrations.
+
+## Resource Objects
+
+### REMOTE_NEWSLETTER_RESOURCE
+
+Handles newsletter operations with the Buttondown API.
+
+```typescript
+const REMOTE_NEWSLETTER_RESOURCE: Resource<Newsletter, Newsletter>
+```
+
+#### Methods
+
+**get(configuration)**
+
+Fetches the newsletter configuration from the API.
+
+```typescript
+async get(configuration: Configuration): Promise<Newsletter | null>
+```
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with API credentials and username
+</ParamField>
+
+<ResponseField name="return" type="Newsletter | null">
+  Newsletter object matching the configured username, or `null` if not found
+</ResponseField>
+
+#### Behavior
+
+- Fetches all newsletters from the API (GET `/newsletters`)
+- Filters results to find newsletter matching `configuration.username`
+- Returns `null` if no matching newsletter is found
+
+#### Example
+
+```typescript
+import { REMOTE_NEWSLETTER_RESOURCE } from "./sync/newsletter.js";
+
+const config = {
+  baseUrl: "https://api.buttondown.email/v1",
+  apiKey: "your-api-key",
+  username: "my-newsletter",
+  directory: "./buttondown-data"
+};
+
+const newsletter = await REMOTE_NEWSLETTER_RESOURCE.get(config);
+
+if (newsletter) {
+  console.log(`Found newsletter: ${newsletter.name}`);
+  console.log(`Username: ${newsletter.username}`);
+} else {
+  console.error("Newsletter not found");
+}
+```
+
+**set(value, configuration)**
+
+Updates the newsletter configuration via the API.
+
+```typescript
+async set(
+  value: Newsletter,
+  configuration: Configuration
+): Promise<OperationResult>
+```
+
+<ParamField path="value" type="Newsletter" required>
+  Newsletter object with updated values (must include `id`)
+</ParamField>
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with API credentials
+</ParamField>
+
+<ResponseField name="return" type="OperationResult">
+  Operation result indicating successful update
+</ResponseField>
+
+#### Behavior
+
+- Sends PATCH request to `/newsletters/{id}`
+- Updates newsletter with provided fields
+- Always returns:
+  ```typescript
+  {
+    updated: 1,
+    created: 0,
+    deleted: 0,
+    failed: 0
+  }
+  ```
+
+#### Example
+
+```typescript
+const newsletter = await REMOTE_NEWSLETTER_RESOURCE.get(config);
+
+if (newsletter) {
+  // Update settings
+  newsletter.name = "My Updated Newsletter";
+  newsletter.description = "New description";
+  
+  const result = await REMOTE_NEWSLETTER_RESOURCE.set(
+    newsletter,
+    config
+  );
+  
+  console.log(`Updated: ${result.updated}`);
+}
+```
+
+### LOCAL_NEWSLETTER_RESOURCE
+
+Handles newsletter operations with local JSON file.
+
+```typescript
+const LOCAL_NEWSLETTER_RESOURCE: Resource<Newsletter, Newsletter>
+```
+
+#### Methods
+
+**get(configuration)**
+
+Reads newsletter configuration from local `newsletter.json` file.
+
+```typescript
+async get(configuration: Configuration): Promise<Newsletter>
+```
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with directory path
+</ParamField>
+
+<ResponseField name="return" type="Newsletter">
+  Newsletter object parsed from JSON file
+</ResponseField>
+
+#### Behavior
+
+- Reads from `{directory}/newsletter.json`
+- Parses JSON content
+- Returns newsletter object
+- Throws error if file doesn't exist or JSON is invalid
+
+#### Example
+
+```typescript
+import { LOCAL_NEWSLETTER_RESOURCE } from "./sync/newsletter.js";
+
+const config = {
+  directory: "./buttondown-data",
+  baseUrl: "https://api.buttondown.email/v1",
+  apiKey: "your-api-key"
+};
+
+try {
+  const newsletter = await LOCAL_NEWSLETTER_RESOURCE.get(config);
+  console.log(`Local newsletter: ${newsletter.name}`);
+} catch (error) {
+  console.error("Failed to read newsletter.json");
+}
+```
+
+**set(value, configuration)**
+
+Writes newsletter configuration to local `newsletter.json` file.
+
+```typescript
+async set(
+  value: Newsletter,
+  configuration: Configuration
+): Promise<OperationResult>
+```
+
+<ParamField path="value" type="Newsletter" required>
+  Newsletter object to write
+</ParamField>
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with directory path
+</ParamField>
+
+<ResponseField name="return" type="OperationResult">
+  Operation result indicating successful write
+</ResponseField>
+
+#### Behavior
+
+- Writes to `{directory}/newsletter.json`
+- Formats JSON with 2-space indentation
+- Creates file if it doesn't exist
+- Overwrites existing file
+- Always returns:
+  ```typescript
+  {
+    updated: 1,
+    created: 0,
+    deleted: 0,
+    failed: 0
+  }
+  ```
+
+#### Example
+
+```typescript
+const newsletter = {
+  id: "news_123",
+  username: "my-newsletter",
+  name: "My Newsletter",
+  description: "A great newsletter",
+  // ... other fields
+};
+
+await LOCAL_NEWSLETTER_RESOURCE.set(newsletter, config);
+console.log("Newsletter saved to newsletter.json");
+```
+
+### NEWSLETTER_RESOURCE
+
+Combined resource group for newsletter synchronization.
+
+```typescript
+const NEWSLETTER_RESOURCE: ResourceGroup<
+  Newsletter,
+  Newsletter,
+  Newsletter
+>
+```
+
+#### Properties
+
+<ResponseField name="name" type="string">
+  Resource identifier: `"newsletter"`
+</ResponseField>
+
+<ResponseField name="remote" type="Resource<Newsletter, Newsletter>">
+  Remote API resource handler
+</ResponseField>
+
+<ResponseField name="local" type="Resource<Newsletter, Newsletter>">
+  Local filesystem resource handler
+</ResponseField>
+
+## Usage Patterns
+
+### Pull Newsletter from Remote
+
+```typescript
+import { NEWSLETTER_RESOURCE } from "./sync/newsletter.js";
+
+const config = {
+  baseUrl: "https://api.buttondown.email/v1",
+  apiKey: "your-api-key",
+  username: "my-newsletter",
+  directory: "./buttondown-data"
+};
+
+// Fetch from API
+const newsletter = await NEWSLETTER_RESOURCE.remote.get(config);
+
+if (newsletter) {
+  // Save to local file
+  await NEWSLETTER_RESOURCE.local.set(newsletter, config);
+  console.log("Newsletter synced to newsletter.json");
+} else {
+  console.error("Newsletter not found on remote");
+}
+```
+
+### Push Local Changes to Remote
+
+```typescript
+// Read from local file
+const localNewsletter = await NEWSLETTER_RESOURCE.local.get(config);
+
+// Update API
+const result = await NEWSLETTER_RESOURCE.remote.set(
+  localNewsletter,
+  config
+);
+
+console.log(`Newsletter updated: ${result.updated}`);
+```
+
+### Edit Newsletter Settings
+
+```typescript
+import { readFile, writeFile } from "fs/promises";
+import path from "path";
+
+const config = {
+  directory: "./buttondown-data",
+  baseUrl: "https://api.buttondown.email/v1",
+  apiKey: "your-api-key"
+};
+
+// Read current settings
+const filePath = path.join(config.directory, "newsletter.json");
+const newsletter = JSON.parse(
+  await readFile(filePath, "utf8")
+);
+
+// Update settings
+newsletter.name = "My New Newsletter Name";
+newsletter.description = "Updated description";
+
+// Write back
+await writeFile(
+  filePath,
+  JSON.stringify(newsletter, null, 2)
+);
+
+console.log("Newsletter settings updated locally");
+```
+
+### Sync Workflow
+
+```typescript
+// 1. Pull latest from remote
+const remote = await NEWSLETTER_RESOURCE.remote.get(config);
+if (!remote) {
+  throw new Error("Newsletter not found");
+}
+
+// 2. Save backup locally
+await NEWSLETTER_RESOURCE.local.set(remote, config);
+
+// 3. Make local changes
+const local = await NEWSLETTER_RESOURCE.local.get(config);
+local.description = "Updated locally";
+await NEWSLETTER_RESOURCE.local.set(local, config);
+
+// 4. Push changes back to remote
+await NEWSLETTER_RESOURCE.remote.set(local, config);
+
+console.log("Sync complete");
+```
+
+## Notes
+
+### Serialization
+
+Unlike emails, automations, and snippets, the newsletter resource doesn't require custom serialization/deserialization:
+
+```typescript
+serialize: (r) => r,    // Identity function
+deserialize: (s) => s   // Identity function
+```
+
+The newsletter object is stored as-is in JSON format without transformation.
+
+### Single Resource
+
+The newsletter module differs from other sync operations:
+
+- Handles a **single object** instead of a collection
+- Returns `Newsletter | null` instead of `Newsletter[]`
+- No pagination needed
+- No slug/identifier generation required
+
+### Username Matching
+
+When fetching from remote, the module filters newsletters by `configuration.username`. Make sure your configuration includes the correct username:
+
+```typescript
+const config = {
+  username: "my-newsletter",  // Must match your Buttondown username
+  // ... other config
+};
+```

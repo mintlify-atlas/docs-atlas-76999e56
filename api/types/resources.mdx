@@ -1,0 +1,156 @@
+---
+title: Resource Types
+description: Resource and ResourceGroup types for managing Buttondown data
+---
+
+Resource types define the interface for syncing data between the Buttondown API and local storage.
+
+## Resource
+
+A `Resource` represents a single type of data that can be synced, with methods for reading, writing, and transforming between different representations.
+
+### Type Definition
+
+```typescript
+export type Resource<Model, SerializedModel> = {
+  get(configuration: Configuration): Promise<Model | null>;
+  set(value: Model, configuration: Configuration): Promise<OperationResult>;
+  serialize: (r: Model) => SerializedModel;
+  deserialize: (s: SerializedModel) => Model;
+};
+```
+
+### Type Parameters
+
+<ResponseField name="Model" type="type parameter">
+  The runtime representation of the resource, typically the raw API response or in-memory data structure.
+</ResponseField>
+
+<ResponseField name="SerializedModel" type="type parameter">
+  The serialized representation used for local storage, typically a JSON-serializable format.
+</ResponseField>
+
+### Methods
+
+<ResponseField name="get" type="(configuration: Configuration) => Promise<Model | null>">
+  Retrieves the resource data. Returns `null` if the resource doesn't exist.
+  
+  **Parameters:**
+  - `configuration`: The Configuration object with API credentials and directory path
+  
+  **Returns:** The resource data in its Model format, or `null` if not found
+</ResponseField>
+
+<ResponseField name="set" type="(value: Model, configuration: Configuration) => Promise<OperationResult>">
+  Writes the resource data, creating or updating as needed.
+  
+  **Parameters:**
+  - `value`: The resource data to write
+  - `configuration`: The Configuration object with API credentials and directory path
+  
+  **Returns:** An OperationResult with counts of updated, created, deleted, and failed operations
+</ResponseField>
+
+<ResponseField name="serialize" type="(r: Model) => SerializedModel">
+  Transforms the runtime Model into a SerializedModel suitable for local storage.
+  
+  **Parameters:**
+  - `r`: The resource in Model format
+  
+  **Returns:** The resource in SerializedModel format
+</ResponseField>
+
+<ResponseField name="deserialize" type="(s: SerializedModel) => Model">
+  Transforms a SerializedModel back into the runtime Model format.
+  
+  **Parameters:**
+  - `s`: The resource in SerializedModel format
+  
+  **Returns:** The resource in Model format
+</ResponseField>
+
+## ResourceGroup
+
+A `ResourceGroup` pairs a remote (API) resource with a local (filesystem) resource, enabling bidirectional sync.
+
+### Type Definition
+
+```typescript
+export type ResourceGroup<A, B, C> = {
+  remote: Resource<A, B>;
+  local: Resource<B, C>;
+  name: string;
+};
+```
+
+### Type Parameters
+
+<ResponseField name="A" type="type parameter">
+  The Model type for the remote resource (API response format).
+</ResponseField>
+
+<ResponseField name="B" type="type parameter">
+  The SerializedModel type for the remote resource, which serves as the Model type for the local resource. This is the intermediate format used for sync.
+</ResponseField>
+
+<ResponseField name="C" type="type parameter">
+  The SerializedModel type for the local resource (filesystem storage format).
+</ResponseField>
+
+### Properties
+
+<ResponseField name="remote" type="Resource<A, B>" required>
+  The remote resource that interfaces with the Buttondown API. It transforms API responses (type `A`) into the intermediate sync format (type `B`).
+</ResponseField>
+
+<ResponseField name="local" type="Resource<B, C>" required>
+  The local resource that interfaces with the filesystem. It transforms the intermediate sync format (type `B`) into the local storage format (type `C`).
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  A human-readable name for this resource group, used for logging and display purposes.
+</ResponseField>
+
+## Usage Example
+
+```typescript
+// Define a resource for newsletters
+const newsletterResource: Resource<ApiNewsletter, Newsletter> = {
+  async get(config) {
+    const client = constructClient(config);
+    const response = await client.GET("/newsletters/{id}");
+    return response.data || null;
+  },
+  
+  async set(newsletter, config) {
+    const client = constructClient(config);
+    // ... write logic
+    return { updated: 1, created: 0, deleted: 0, failed: 0 };
+  },
+  
+  serialize: (api) => ({
+    id: api.id,
+    name: api.name,
+    description: api.description
+  }),
+  
+  deserialize: (data) => data as ApiNewsletter
+};
+
+// Pair with local resource in a group
+const newsletterGroup: ResourceGroup<ApiNewsletter, Newsletter, string> = {
+  remote: newsletterResource,
+  local: localNewsletterResource,
+  name: "Newsletters"
+};
+```
+
+## Type Flow
+
+The type parameters ensure type safety through the sync pipeline:
+
+1. **Remote fetch**: API returns `A` → serialized to `B`
+2. **Intermediate**: Both remote and local work with `B`
+3. **Local storage**: `B` serialized to `C` for filesystem
+
+This three-type system allows the sync engine to work with different representations at each layer while maintaining type safety.

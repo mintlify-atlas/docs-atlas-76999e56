@@ -1,0 +1,306 @@
+---
+title: "Images"
+description: "API reference for image sync operations"
+---
+
+The images module handles synchronization of media files between Buttondown's image storage and local filesystem.
+
+## Overview
+
+Images are fetched from the Buttondown API and stored locally in the `media/` directory. The module provides upload functionality for local images to be pushed to Buttondown.
+
+## Types
+
+### Image
+
+Based on the Buttondown API `Image` schema from OpenAPI specification.
+
+```typescript
+type Image = components["schemas"]["Image"]
+```
+
+Typically includes:
+- `id` - Unique identifier
+- `image` - URL to the image file
+- `filename` - Original filename
+- `created` - Creation timestamp
+
+## Functions
+
+### uploadImage()
+
+Uploads a local image file to Buttondown.
+
+```typescript
+async function uploadImage(
+  configuration: Configuration,
+  imagePath: string
+): Promise<{ id: string; url: string; filename: string }>
+```
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration object containing API credentials and settings
+</ParamField>
+
+<ParamField path="imagePath" type="string" required>
+  Absolute path to the local image file to upload
+</ParamField>
+
+<ResponseField name="id" type="string">
+  Unique identifier for the uploaded image
+</ResponseField>
+
+<ResponseField name="url" type="string">
+  Public URL where the image is hosted
+</ResponseField>
+
+<ResponseField name="filename" type="string">
+  Filename of the uploaded image
+</ResponseField>
+
+#### Supported Formats
+
+The function automatically detects MIME types based on file extension:
+
+| Extension | MIME Type |
+|-----------|----------|
+| `.gif` | `image/gif` |
+| `.jpeg`, `.jpg` | `image/jpeg` |
+| `.png` | `image/png` |
+| `.svg` | `image/svg+xml` |
+| `.webp` | `image/webp` |
+| Other | `application/octet-stream` |
+
+#### Example
+
+```typescript
+import { uploadImage } from "./sync/images.js";
+
+const config = {
+  baseUrl: "https://api.buttondown.email/v1",
+  apiKey: "your-api-key",
+  directory: "./buttondown-data"
+};
+
+try {
+  const result = await uploadImage(
+    config,
+    "/path/to/local/logo.png"
+  );
+  
+  console.log(`Uploaded: ${result.filename}`);
+  console.log(`URL: ${result.url}`);
+  console.log(`ID: ${result.id}`);
+} catch (error) {
+  console.error("Upload failed:", error.message);
+}
+```
+
+#### Error Handling
+
+Throws an error if:
+- The file cannot be read
+- The upload request fails
+- The API returns an error response
+
+## Resource Objects
+
+### REMOTE_IMAGES_RESOURCE
+
+Handles image operations with the Buttondown API.
+
+```typescript
+const REMOTE_IMAGES_RESOURCE: Resource<Image[], Image[]>
+```
+
+#### Methods
+
+**get(configuration)**
+
+Fetches all images from the Buttondown API with automatic pagination.
+
+```typescript
+async get(configuration: Configuration): Promise<Image[]>
+```
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with API credentials
+</ParamField>
+
+<ResponseField name="return" type="Image[]">
+  Array of all images from the API
+</ResponseField>
+
+- Fetches images in pages of 100 (defined by `PAGE_SIZE`)
+- Continues until all pages are retrieved
+- Returns complete array of all images
+
+**set(value, configuration)**
+
+Bulk image upload is not supported via the Buttondown API.
+
+```typescript
+async set(
+  value: Image[],
+  configuration: Configuration
+): Promise<OperationResult>
+```
+
+Always returns:
+```typescript
+{
+  updated: 0,
+  created: 0,
+  deleted: 0,
+  failed: 0
+}
+```
+
+Use `uploadImage()` function for individual uploads instead.
+
+### LOCAL_IMAGES_RESOURCE
+
+Handles image operations with local filesystem.
+
+```typescript
+const LOCAL_IMAGES_RESOURCE: Resource<Image[], Buffer[]>
+```
+
+#### Methods
+
+**get(configuration)**
+
+Local image reading is not implemented (returns empty array).
+
+```typescript
+async get(configuration: Configuration): Promise<Image[]>
+```
+
+<ResponseField name="return" type="Image[]">
+  Empty array (always returns `[]`)
+</ResponseField>
+
+**set(value, configuration)**
+
+Downloads remote images and saves them to local `media/` directory.
+
+```typescript
+async set(
+  value: Image[],
+  configuration: Configuration
+): Promise<OperationResult>
+```
+
+<ParamField path="value" type="Image[]" required>
+  Array of image objects to download
+</ParamField>
+
+<ParamField path="configuration" type="Configuration" required>
+  Configuration with directory path
+</ParamField>
+
+<ResponseField name="return" type="OperationResult">
+  Operation result (always returns zeros)
+</ResponseField>
+
+#### Behavior
+
+- Creates `media/` directory if it doesn't exist
+- Downloads each image from its URL
+- Saves with original filename from URL
+- Overwrites existing files with same name
+
+#### Example
+
+```typescript
+const images = [
+  {
+    id: "img1",
+    image: "https://cdn.buttondown.email/images/abc123.png",
+    filename: "logo.png"
+  }
+];
+
+await LOCAL_IMAGES_RESOURCE.set(images, config);
+// Saves to: {directory}/media/abc123.png
+```
+
+### IMAGES_RESOURCE
+
+Combined resource group for image synchronization.
+
+```typescript
+const IMAGES_RESOURCE: ResourceGroup<Image[], Image[], Buffer[]>
+```
+
+Provides unified interface for syncing images between remote API and local storage.
+
+#### Properties
+
+<ResponseField name="name" type="string">
+  Resource identifier: `"images"`
+</ResponseField>
+
+<ResponseField name="remote" type="Resource<Image[], Image[]>">
+  Remote API resource handler
+</ResponseField>
+
+<ResponseField name="local" type="Resource<Image[], Buffer[]>">
+  Local filesystem resource handler
+</ResponseField>
+
+## Usage Patterns
+
+### Syncing Images from Remote to Local
+
+```typescript
+import { IMAGES_RESOURCE } from "./sync/images.js";
+
+const config = {
+  baseUrl: "https://api.buttondown.email/v1",
+  apiKey: "your-api-key",
+  directory: "./buttondown-data"
+};
+
+// Fetch all remote images
+const remoteImages = await IMAGES_RESOURCE.remote.get(config);
+
+console.log(`Found ${remoteImages.length} images`);
+
+// Download to local filesystem
+await IMAGES_RESOURCE.local.set(remoteImages, config);
+
+console.log("Images synced to media/ directory");
+```
+
+### Uploading Local Image
+
+```typescript
+import { uploadImage } from "./sync/images.js";
+
+const uploaded = await uploadImage(
+  config,
+  "./local-images/new-banner.jpg"
+);
+
+console.log(`Image available at: ${uploaded.url}`);
+```
+
+## Constants
+
+### EXTENSION_TO_MIME
+
+Mapping of file extensions to MIME types:
+
+```typescript
+const EXTENSION_TO_MIME: Record<string, string> = {
+  ".gif": "image/gif",
+  ".jpeg": "image/jpeg",
+  ".jpg": "image/jpeg",
+  ".png": "image/png",
+  ".svg": "image/svg+xml",
+  ".webp": "image/webp"
+}
+```
+
+Used by `uploadImage()` to set correct Content-Type header.

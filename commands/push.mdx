@@ -1,0 +1,270 @@
+---
+title: buttondown push
+description: Upload local emails and media to Buttondown
+---
+
+The `push` command uploads your local newsletter content to Buttondown, creating or updating emails and media.
+
+## Usage
+
+```bash
+buttondown push [options]
+```
+
+## What Gets Uploaded
+
+The `push` command uploads:
+
+1. **Emails** - Only emails that have been modified or created locally
+2. **Media** - New images referenced in your emails
+3. **Automations** - Your automation sequences
+4. **Newsletter settings** - Basic newsletter configuration
+5. **Snippets** - Reusable content snippets
+
+## Basic Example
+
+```bash
+$ buttondown push
+pushing
+emails pushed: 1 updated, 0 created, 0 deleted, 0 failed
+automations pushed: 0 updated, 0 created, 0 deleted, 0 failed
+newsletter pushed: 0 updated, 0 created, 0 deleted, 0 failed
+snippets pushed: 0 updated, 0 created, 0 deleted, 0 failed
+```
+
+## Options
+
+<ParamField path="--api-key" type="string" shorthand="-k">
+  Your Buttondown API key. Required if you haven't run `buttondown login`.
+  
+  If you've already logged in, the stored API key will be used automatically.
+</ParamField>
+
+<ParamField path="--base-url" type="string" shorthand="-b" default="https://api.buttondown.com/v1">
+  The Buttondown API base URL.
+  
+  Only needed if you're using a self-hosted Buttondown instance or a custom API endpoint.
+</ParamField>
+
+<ParamField path="--directory" type="string" shorthand="-d" default="./buttondown">
+  The directory containing your local content.
+  
+  Must be a directory previously created by `buttondown pull` or containing properly structured content.
+</ParamField>
+
+## Smart Sync
+
+The `push` command is intelligent about what it uploads:
+
+### Only Changed Emails
+
+The CLI compares local emails with remote versions and only pushes emails that have changed:
+
+```bash
+# Edit one email locally
+$ vim ./buttondown/emails/welcome.md
+
+# Only the changed email gets pushed
+$ buttondown push
+pushing
+emails pushed: 1 updated, 0 created, 0 deleted, 0 failed
+```
+
+### Automatic Image Upload
+
+When you reference new images in your emails using relative paths, they're automatically uploaded:
+
+```markdown
+<!-- In your email: welcome.md -->
+![New diagram](../media/diagram.png)
+```
+
+```bash
+$ buttondown push
+pushing
+emails pushed: 1 updated, 0 created, 0 deleted, 0 failed
+# diagram.png is automatically uploaded and URL is converted
+```
+
+### Image Deduplication
+
+The CLI tracks which images have already been uploaded using `.buttondown-sync.json`. Images are only uploaded once, even if referenced in multiple emails.
+
+## Image URL Conversion
+
+When pushing emails, relative image paths are converted to absolute Buttondown URLs:
+
+```markdown
+<!-- Local file -->
+![Logo](../media/logo.png)
+
+<!-- Pushed to Buttondown as -->
+![Logo](https://buttondown-media.s3.amazonaws.com/abc123/logo.png)
+```
+
+This conversion happens automatically, and the mapping is stored in `.buttondown-sync.json`.
+
+## Authentication
+
+The `push` command requires authentication. You can provide your API key in two ways:
+
+### Using stored credentials (recommended)
+
+```bash
+# First time: log in
+$ buttondown login --api-key=your-api-key
+
+# Then push without specifying the key
+$ buttondown push
+```
+
+### Providing API key directly
+
+```bash
+$ buttondown push --api-key=your-api-key
+```
+
+## Custom Directory
+
+Push content from a specific directory:
+
+```bash
+$ buttondown push --directory=./my-newsletter
+pushing
+emails pushed: 2 updated, 1 created, 0 deleted, 0 failed
+```
+
+## Operation Results
+
+The push command shows statistics for each resource type:
+
+- **updated** - Existing remote resources that were modified
+- **created** - New resources uploaded
+- **deleted** - Remote resources removed (if they no longer exist locally)
+- **failed** - Operations that encountered errors
+
+## Error Handling
+
+### Missing API key
+
+```bash
+$ buttondown push
+Error: --api-key is required for the push command, or run 'buttondown login' first
+```
+
+### Invalid directory
+
+```bash
+$ buttondown push --directory=./nonexistent
+Error: Directory ./nonexistent does not exist
+```
+
+### API errors
+
+```bash
+$ buttondown push
+Error: Failed to update email "welcome": Validation error - subject is required
+```
+
+## Examples
+
+### Create and push a new email
+
+```bash
+# Create a new draft
+$ buttondown create --title="Weekly Update #1"
+Created new draft email: ./buttondown/emails/weekly-update-1.md
+
+# Edit the email
+$ vim ./buttondown/emails/weekly-update-1.md
+
+# Push to Buttondown
+$ buttondown push
+pushing
+emails pushed: 0 updated, 1 created, 0 deleted, 0 failed
+```
+
+### Update existing emails
+
+```bash
+# Edit multiple emails
+$ vim ./buttondown/emails/welcome.md
+$ vim ./buttondown/emails/weekly-1.md
+
+# Push all changes
+$ buttondown push
+pushing
+emails pushed: 2 updated, 0 created, 0 deleted, 0 failed
+```
+
+### Push with new images
+
+```bash
+# Add a new image to media/
+$ cp ~/screenshots/feature.png ./buttondown/media/
+
+# Reference it in an email
+$ echo '![New feature](../media/feature.png)' >> ./buttondown/emails/update.md
+
+# Push - image will be uploaded automatically
+$ buttondown push
+pushing
+emails pushed: 1 updated, 0 created, 0 deleted, 0 failed
+```
+
+### Push from custom directory
+
+```bash
+$ buttondown push --directory=./newsletter-archive
+pushing
+emails pushed: 0 updated, 0 created, 0 deleted, 0 failed
+automations pushed: 0 updated, 0 created, 0 deleted, 0 failed
+```
+
+## Workflow Example
+
+Typical workflow for editing and publishing:
+
+```bash
+# 1. Pull latest content
+$ buttondown pull
+pulling
+emails pulled: 1 updated, 0 created, 0 deleted, 0 failed
+
+# 2. Create or edit emails locally
+$ buttondown create --title="New Post"
+$ vim ./buttondown/emails/new-post.md
+
+# 3. Push changes back
+$ buttondown push
+pushing
+emails pushed: 0 updated, 1 created, 0 deleted, 0 failed
+
+# 4. Verify in Buttondown web interface
+# Visit https://buttondown.com/emails to see your draft
+```
+
+## Best Practices
+
+- **Pull before push** - Always run `buttondown pull` before pushing to avoid overwriting recent changes
+- **Review changes** - Check which files have changed before pushing (use `git diff` if using version control)
+- **Test locally** - Preview your Markdown rendering before pushing
+- **Incremental changes** - Push frequently with small changes rather than large batches
+- **Sync state** - Don't manually edit `.buttondown-sync.json` - it's managed automatically
+
+## What Doesn't Get Pushed
+
+The push command won't upload:
+
+- Files outside the configured directory
+- The `.buttondown-sync.json` metadata file itself
+- Hidden files (starting with `.`)
+- Files in directories other than `emails/`, `media/`, etc.
+
+## Next Steps
+
+After pushing your content:
+
+- Visit [Buttondown web interface](https://buttondown.com/emails) to review and publish drafts
+- Run [buttondown pull](/commands/pull) to sync any changes made via the web interface
+- Continue the edit-push cycle for your next newsletter

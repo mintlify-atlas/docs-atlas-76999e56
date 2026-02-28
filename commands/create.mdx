@@ -1,0 +1,264 @@
+---
+title: buttondown create
+description: Create a new draft email locally
+---
+
+The `create` command generates a new draft email file with proper frontmatter and structure.
+
+## Usage
+
+```bash
+buttondown create --title="Your Email Title" [options]
+```
+
+## Basic Example
+
+```bash
+$ buttondown create --title="Welcome to my newsletter"
+Created new draft email: ./buttondown/emails/welcome-to-my-newsletter.md
+```
+
+## Options
+
+<ParamField path="--title" type="string" shorthand="-t" required>
+  The title/subject of your new email.
+  
+  This will be used as the email subject and to generate the filename slug.
+</ParamField>
+
+<ParamField path="--directory" type="string" shorthand="-d" default="./buttondown">
+  The directory where the email will be created.
+  
+  The email file will be created in the `emails/` subdirectory. If the directory doesn't exist, it will be created automatically.
+</ParamField>
+
+## Generated File Structure
+
+The command creates a Markdown file with YAML frontmatter:
+
+```markdown
+---
+subject: Welcome to my newsletter
+status: draft
+email_type: public
+slug: welcome-to-my-newsletter
+created: 2024-01-15T10:30:00.000Z
+modified: 2024-01-15T10:30:00.000Z
+---
+
+Write your email content here...
+```
+
+### Frontmatter Fields
+
+- **subject** - The email title you provided
+- **status** - Always set to `draft` for new emails
+- **email_type** - Set to `public` by default
+- **slug** - Auto-generated from the title (lowercase, hyphenated)
+- **created** - ISO timestamp when the file was created
+- **modified** - ISO timestamp when the file was created (same as created initially)
+
+## Filename Generation
+
+The filename is generated from the title by:
+
+1. Converting to lowercase
+2. Replacing non-alphanumeric characters with hyphens
+3. Removing leading and trailing hyphens
+
+Examples:
+
+```bash
+--title="Hello World"           → hello-world.md
+--title="My First Email!"       → my-first-email.md
+--title="Weekly Update #42"     → weekly-update-42.md
+--title="2024: Year in Review"  → 2024-year-in-review.md
+```
+
+## No Authentication Required
+
+Unlike `pull` and `push`, the `create` command works entirely locally and doesn't require an API key or authentication:
+
+```bash
+# Works without logging in
+$ buttondown create --title="Draft Post"
+Created new draft email: ./buttondown/emails/draft-post.md
+```
+
+## Custom Directory
+
+Create an email in a specific directory:
+
+```bash
+$ buttondown create --title="New Post" --directory=./my-newsletter
+Created new draft email: ./my-newsletter/emails/new-post.md
+```
+
+## Error Handling
+
+### Missing title
+
+```bash
+$ buttondown create
+Error: --title is required for the create command
+```
+
+### Duplicate slug
+
+If an email with the same slug already exists:
+
+```bash
+$ buttondown create --title="Welcome Email"
+Created new draft email: ./buttondown/emails/welcome-email.md
+
+$ buttondown create --title="Welcome Email"
+Error: Email with slug "welcome-email" already exists at ./buttondown/emails/welcome-email.md
+```
+
+To create a different email with a similar title, modify the title slightly:
+
+```bash
+$ buttondown create --title="Welcome Email v2"
+Created new draft email: ./buttondown/emails/welcome-email-v2.md
+```
+
+## Examples
+
+### Create a simple draft
+
+```bash
+$ buttondown create --title="Weekly Update"
+Created new draft email: ./buttondown/emails/weekly-update.md
+
+$ cat ./buttondown/emails/weekly-update.md
+---
+subject: Weekly Update
+status: draft
+email_type: public
+slug: weekly-update
+created: 2024-01-15T10:30:00.000Z
+modified: 2024-01-15T10:30:00.000Z
+---
+
+Write your email content here...
+```
+
+### Create and edit immediately
+
+```bash
+$ buttondown create --title="Product Launch Announcement"
+Created new draft email: ./buttondown/emails/product-launch-announcement.md
+
+$ vim ./buttondown/emails/product-launch-announcement.md
+```
+
+### Create in custom directory
+
+```bash
+$ buttondown create \
+  --title="February Newsletter" \
+  --directory=./newsletters/2024
+Created new draft email: ./newsletters/2024/emails/february-newsletter.md
+```
+
+### Create with special characters
+
+```bash
+$ buttondown create --title="How to Use TypeScript (The Right Way!)"
+Created new draft email: ./buttondown/emails/how-to-use-typescript-the-right-way.md
+```
+
+## Editing the Email
+
+After creating an email, edit it with your preferred text editor:
+
+```bash
+$ buttondown create --title="New Post"
+$ code ./buttondown/emails/new-post.md  # VS Code
+$ vim ./buttondown/emails/new-post.md   # Vim
+$ nano ./buttondown/emails/new-post.md  # Nano
+```
+
+## Adding Content
+
+You can write standard Markdown in the email body:
+
+```markdown
+---
+subject: My Newsletter
+status: draft
+email_type: public
+slug: my-newsletter
+created: 2024-01-15T10:30:00.000Z
+modified: 2024-01-15T10:30:00.000Z
+---
+
+# Welcome!
+
+This is my first newsletter. Here's what you'll find:
+
+- **Updates** on our latest features
+- **Tips** for getting the most out of our product
+- **News** from the community
+
+![Header image](../media/header.png)
+
+[Subscribe to stay updated](https://buttondown.com/example)
+```
+
+## Publishing Workflow
+
+Complete workflow from creation to publishing:
+
+```bash
+# 1. Create a new draft
+$ buttondown create --title="Weekly Update #1"
+Created new draft email: ./buttondown/emails/weekly-update-1.md
+
+# 2. Edit the email
+$ vim ./buttondown/emails/weekly-update-1.md
+
+# 3. Push to Buttondown
+$ buttondown push
+pushing
+emails pushed: 0 updated, 1 created, 0 deleted, 0 failed
+
+# 4. Change status to 'published' in Buttondown web interface
+# Or edit the frontmatter locally and push again:
+$ sed -i 's/status: draft/status: published/' ./buttondown/emails/weekly-update-1.md
+$ buttondown push
+pushing
+emails pushed: 1 updated, 0 created, 0 deleted, 0 failed
+```
+
+## Best Practices
+
+- **Descriptive titles** - Use clear, descriptive titles that will make good subjects
+- **Unique titles** - Avoid duplicate titles to prevent slug conflicts
+- **Edit before pushing** - Complete your draft locally before running `buttondown push`
+- **Version control** - Use Git to track changes to your email drafts
+- **Template emails** - Create a template email and duplicate/modify it for recurring newsletters
+
+## Frontmatter Customization
+
+After creation, you can manually edit the frontmatter to customize:
+
+```markdown
+---
+subject: My Custom Email
+status: draft              # draft, published, scheduled
+email_type: public         # public, private
+slug: custom-slug
+publish_date: 2024-02-01T10:00:00Z  # For scheduled emails
+secondary_id: 123          # Optional ID field
+---
+```
+
+## Next Steps
+
+After creating an email:
+
+- Edit the email content using your preferred text editor
+- Add images to the `media/` directory and reference them with relative paths
+- Run [buttondown push](/commands/push) to upload the email to Buttondown
+- Visit the [Buttondown web interface](https://buttondown.com/emails) to publish or schedule the email

@@ -1,0 +1,79 @@
+---
+title: Configuration
+description: Configuration type for Buttondown CLI sync operations
+---
+
+The `Configuration` type contains all the settings required to connect to the Buttondown API and manage local sync operations.
+
+## Type Definition
+
+```typescript
+export type Configuration = {
+  baseUrl: string;
+  apiKey: string;
+  username?: string;
+  directory: string;
+};
+```
+
+## Properties
+
+<ResponseField name="baseUrl" type="string" required>
+  The base URL for the Buttondown API. Typically `https://api.buttondown.email`.
+</ResponseField>
+
+<ResponseField name="apiKey" type="string" required>
+  Your Buttondown API key for authentication. Used in the `Authorization` header as `Token {apiKey}`.
+</ResponseField>
+
+<ResponseField name="username" type="string">
+  Optional username for the Buttondown account. Used for filtering resources that belong to a specific user.
+</ResponseField>
+
+<ResponseField name="directory" type="string" required>
+  The local directory path where synced resources will be stored. This is the root directory for all sync operations.
+</ResponseField>
+
+## Usage
+
+The `Configuration` type is passed to all resource operations to provide API credentials and local storage settings:
+
+```typescript
+const config: Configuration = {
+  baseUrl: "https://api.buttondown.email",
+  apiKey: process.env.BUTTONDOWN_API_KEY,
+  username: "myuser",
+  directory: "./buttondown-sync"
+};
+
+// Used with resource operations
+await resource.get(config);
+await resource.set(data, config);
+```
+
+## Client Construction
+
+The configuration is used to construct an authenticated API client:
+
+```typescript
+export const constructClient = (configuration: Configuration) => {
+  return createClient<paths>({
+    base: configuration.baseUrl,
+    middlewares: [
+      async (request, next) => {
+        request.headers.set("authorization", `Token ${configuration.apiKey}`);
+        request.headers.set(
+          "user-agent",
+          `buttondown-cli/${PACKAGE_JSON.version}`,
+        );
+        return next(request);
+      },
+    ],
+  });
+};
+```
+
+The client automatically:
+- Sets the Authorization header with your API key
+- Adds a User-Agent header identifying the CLI version
+- Directs all requests to the configured base URL

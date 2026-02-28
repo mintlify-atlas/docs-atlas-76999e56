@@ -1,80 +1,282 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quick Start
+description: Get up and running with Buttondown CLI in minutes
 ---
 
-## Get started in three steps
+# Quick Start
 
-Get your documentation site running locally and make your first customization.
+This guide will walk you through authenticating with Buttondown, pulling your content, making edits, and pushing changes back.
 
-### Step 1: Set up your local environment
+## Step 1: Authenticate
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Run the login command">
+    Start by authenticating with your Buttondown API key:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    ```bash
+    buttondown login
+    ```
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    The CLI will prompt you to enter your API key interactively.
+  </Step>
 
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+  <Step title="Enter your API key">
+    Paste your API key when prompted. You can find your API key in your [Buttondown settings](https://buttondown.com/settings).
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```
+    Please enter your Buttondown API key:
+    > your-api-key-here
+    ```
+  </Step>
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
-
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 3: Go live
-
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
-
-## Next steps
-
-Now that you have your docs running, explore these key features:
-
-<CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
-</CardGroup>
+  <Step title="Confirm authentication">
+    Once authenticated, you'll see a success message:
+    
+    ```
+    ✓ Successfully configured API key!
+    ```
+  </Step>
+</Steps>
 
 <Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
+  You can also provide your API key directly using the `--api-key` flag:
+  
+  ```bash
+  buttondown login --api-key=your-api-key
+  ```
 </Note>
+
+### Updating Your API Key
+
+If you need to change your API key, use the `--force` flag:
+
+```bash
+buttondown login --force
+```
+
+## Step 2: Pull Your Content
+
+<Steps>
+  <Step title="Pull content from Buttondown">
+    Download all your emails and media files:
+    
+    ```bash
+    buttondown pull
+    ```
+    
+    By default, this creates a `./buttondown` directory in your current location.
+  </Step>
+
+  <Step title="Review the downloaded content">
+    The CLI will show you what was synced:
+    
+    ```
+    newsletter pulled: 1 updated, 0 created, 0 deleted, 0 failed
+    emails pulled: 12 updated, 0 created, 0 deleted, 0 failed
+    images pulled: 8 updated, 0 created, 0 deleted, 0 failed
+    All content saved to: ./buttondown
+    ```
+  </Step>
+
+  <Step title="Explore the directory structure">
+    Check out your local newsletter files:
+    
+    ```bash
+    cd buttondown
+    ls -la
+    ```
+    
+    You'll see:
+    - `.buttondown.json` - Sync state and configuration
+    - `emails/` - Your newsletters as Markdown files
+    - `media/` - Downloaded images and attachments
+  </Step>
+</Steps>
+
+<Note>
+  You can specify a custom directory:
+  
+  ```bash
+  buttondown pull --directory=./my-newsletter
+  ```
+</Note>
+
+## Step 3: Edit Your Content
+
+<Steps>
+  <Step title="Open an email file">
+    Navigate to the emails directory and open any `.md` file in your favorite editor:
+    
+    ```bash
+    cd emails
+    vim newsletter-issue-1.md  # or use any editor
+    ```
+  </Step>
+
+  <Step title="Review the email format">
+    Your email will have YAML frontmatter followed by Markdown content:
+    
+    ```markdown
+    ---
+    subject: My Newsletter Issue #1
+    status: draft
+    email_type: public
+    slug: newsletter-issue-1
+    publish_date: 2025-04-27T09:00:00Z
+    created: 2025-04-25T15:32:18Z
+    modified: 2025-04-26T10:45:22Z
+    ---
+    
+    # My Newsletter Issue #1
+    
+    Hello subscribers!
+    
+    This is the content of my email...
+    ```
+  </Step>
+
+  <Step title="Make your changes">
+    Edit the content, subject, or any metadata you want to update. Save the file when you're done.
+  </Step>
+</Steps>
+
+<Warning>
+  Don't modify the `id` field in the frontmatter - this is used to match your local file with the remote email on Buttondown.
+</Warning>
+
+## Step 4: Create a New Email (Optional)
+
+You can create new draft emails locally:
+
+```bash
+buttondown create --title="My New Newsletter" --directory=./buttondown
+```
+
+This creates a new Markdown file with the proper frontmatter structure:
+
+```markdown
+---
+subject: My New Newsletter
+status: draft
+email_type: public
+slug: my-new-newsletter
+created: 2026-02-28T10:30:00Z
+modified: 2026-02-28T10:30:00Z
+---
+
+Write your email content here...
+```
+
+## Step 5: Add Media
+
+<Steps>
+  <Step title="Add images to the media folder">
+    Copy any images you want to use into the `media/` directory:
+    
+    ```bash
+    cp ~/Downloads/my-image.png buttondown/media/
+    ```
+  </Step>
+
+  <Step title="Reference images in your emails">
+    After pushing (next step), images are uploaded to Buttondown. You can then reference them using either:
+    
+    - Relative paths: `![Alt text](../media/my-image.png)`
+    - Absolute URLs: `![Alt text](https://buttondown.s3.amazonaws.com/images/...)`
+  </Step>
+</Steps>
+
+## Step 6: Push Your Changes
+
+<Steps>
+  <Step title="Push to Buttondown">
+    Upload your changes back to Buttondown:
+    
+    ```bash
+    buttondown push
+    ```
+  </Step>
+
+  <Step title="Review the sync results">
+    The CLI shows what was uploaded:
+    
+    ```
+    newsletter pushed: 0 updated, 0 created, 0 deleted, 0 failed
+    emails pushed: 2 updated, 1 created, 0 deleted, 0 failed
+    images pushed: 1 updated, 0 created, 0 deleted, 0 failed
+    ```
+  </Step>
+
+  <Step title="Verify on Buttondown">
+    Log in to your [Buttondown dashboard](https://buttondown.com/emails) to see your updated content.
+  </Step>
+</Steps>
+
+<Note>
+  The push command is smart - it only uploads files that have changed since the last sync.
+</Note>
+
+## Common Workflows
+
+### Version Control with Git
+
+Track your newsletter content with Git:
+
+```bash
+cd buttondown
+git init
+git add .
+git commit -m "Initial newsletter backup"
+```
+
+### Regular Backups
+
+Set up a cron job or scheduled task to automatically pull your content:
+
+```bash
+# Add to crontab (daily at 2am)
+0 2 * * * cd /path/to/buttondown && buttondown pull
+```
+
+### Team Collaboration
+
+1. One team member pulls content: `buttondown pull`
+2. Commit to Git: `git add . && git commit -m "Update newsletter"`
+3. Push to remote: `git push origin main`
+4. Other team members pull from Git: `git pull`
+5. When ready, push to Buttondown: `buttondown push`
+
+## Next Steps
+
+Now that you've completed the quick start:
+
+<CardGroup cols={2}>
+  <Card
+    title="Explore Commands"
+    icon="terminal"
+    href="/commands"
+  >
+    Learn about all available CLI commands and options
+  </Card>
+  <Card
+    title="Configuration"
+    icon="gear"
+    href="/configuration"
+  >
+    Customize your sync settings and directory structure
+  </Card>
+  <Card
+    title="Email Format"
+    icon="file"
+    href="/email-format"
+  >
+    Deep dive into the email Markdown format and frontmatter
+  </Card>
+  <Card
+    title="Troubleshooting"
+    icon="question"
+    href="/troubleshooting"
+  >
+    Find solutions to common issues
+  </Card>
+</CardGroup>

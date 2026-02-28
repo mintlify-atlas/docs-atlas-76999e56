@@ -1,0 +1,139 @@
+---
+title: Authentication
+description: How the Buttondown CLI authenticates with the Buttondown API
+---
+
+The Buttondown CLI uses API key authentication to securely connect to your Buttondown account.
+
+## How Authentication Works
+
+The CLI authenticates all requests to the Buttondown API using a token-based authentication system:
+
+1. Your API key is stored locally on your machine
+2. Each API request includes an `Authorization` header with your token
+3. The CLI also sends a user-agent header to identify itself
+
+From the source code in `src/sync/types.ts:26-40`:
+
+```typescript
+export const constructClient = (configuration: Configuration) => {
+  return createClient<paths>({
+    base: configuration.baseUrl,
+    middlewares: [
+      async (request, next) => {
+        request.headers.set("authorization", `Token ${configuration.apiKey}`);
+        request.headers.set(
+          "user-agent",
+          `buttondown-cli/${PACKAGE_JSON.version}`,
+        );
+        return next(request);
+      },
+    ],
+  });
+};
+```
+
+## Configuration Storage
+
+Your credentials are stored using the [conf](https://github.com/sindresorhus/conf) package, which saves configuration data in a platform-specific location:
+
+- **macOS**: `~/Library/Preferences/buttondown-cli-nodejs/`
+- **Linux**: `~/.config/buttondown-cli-nodejs/`
+- **Windows**: `%APPDATA%\buttondown-cli-nodejs\`
+
+The configuration file stores:
+
+<ParamField path="apiKey" type="string">
+  Your Buttondown API key used for authentication
+</ParamField>
+
+<ParamField path="baseUrl" type="string" default="https://api.buttondown.com">
+  The base URL for the Buttondown API
+</ParamField>
+
+<ParamField path="username" type="string" optional>
+  Your Buttondown username (optional)
+</ParamField>
+
+## Getting Your API Key
+
+To get your API key:
+
+1. Log in to your Buttondown account
+2. Navigate to [Settings → API](https://buttondown.com/settings/api)
+3. Copy your API key
+
+<Warning>
+Keep your API key secure! It provides full access to your Buttondown account. Never commit it to version control or share it publicly.
+</Warning>
+
+## Authenticating the CLI
+
+### Interactive Login
+
+The easiest way to authenticate is using the interactive login command:
+
+```bash
+buttondown login
+```
+
+This will prompt you to enter your API key securely.
+
+### Non-Interactive Login
+
+You can also provide your API key directly:
+
+```bash
+buttondown login --api-key=your-api-key-here
+```
+
+### Changing Your API Key
+
+If you're already logged in and want to use a different API key:
+
+```bash
+buttondown login --force
+```
+
+## Logging Out
+
+To remove your stored credentials:
+
+```bash
+buttondown logout
+```
+
+This will delete the locally stored configuration file, requiring you to log in again before using the CLI.
+
+## Security Best Practices
+
+<Steps>
+  <Step title="Use environment-specific API keys">
+    If you have multiple Buttondown accounts (e.g., production and staging), use separate API keys for each.
+  </Step>
+  
+  <Step title="Rotate keys regularly">
+    Periodically generate new API keys in your Buttondown settings and update the CLI configuration.
+  </Step>
+  
+  <Step title="Keep credentials local">
+    Never commit `.buttondown.json` files containing API keys to version control. The CLI stores credentials separately from your synced content.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+### "Unauthorized" Errors
+
+If you receive authentication errors:
+
+1. Verify your API key is correct in your Buttondown settings
+2. Try logging out and logging in again:
+   ```bash
+   buttondown logout
+   buttondown login
+   ```
+
+### Configuration File Location
+
+To find where your configuration is stored, check the platform-specific location listed above. You can manually delete this file if needed to reset your authentication.

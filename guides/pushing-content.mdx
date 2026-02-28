@@ -1,0 +1,305 @@
+---
+title: Pushing Content to Buttondown
+description: Learn how to sync your local changes back to Buttondown
+---
+
+The `push` command uploads your local content changes to Buttondown, intelligently detecting what has changed and only updating what's necessary.
+
+## How Push Works
+
+When you run `buttondown push`, the CLI performs an intelligent sync:
+
+<Steps>
+  <Step title="Read Sync State">
+    Loads the `.buttondown-sync.json` file to understand which images have already been uploaded and their URL mappings.
+  </Step>
+  
+  <Step title="Process Local Emails">
+    Reads all email files from the `emails/` directory and identifies any relative image references that need to be uploaded.
+  </Step>
+  
+  <Step title="Upload New Images">
+    Automatically uploads any images referenced in emails that haven't been synced yet to Buttondown's media library.
+  </Step>
+  
+  <Step title="Convert Image References">
+    Replaces relative image paths with absolute URLs from Buttondown before uploading email content.
+  </Step>
+  
+  <Step title="Detect Changes">
+    Compares local emails with remote versions to identify only the emails that have actually changed.
+  </Step>
+  
+  <Step title="Push Changes">
+    Updates changed emails and pushes automations, snippets, and newsletter settings.
+  </Step>
+  
+  <Step title="Update Sync State">
+    Updates the `.buttondown-sync.json` file with any newly uploaded images.
+  </Step>
+</Steps>
+
+## Basic Usage
+
+Push all local changes to Buttondown:
+
+```bash
+buttondown push
+```
+
+<Warning>
+Make sure you've run `buttondown pull` at least once before pushing. The sync state file is required for proper image handling.
+</Warning>
+
+## What Gets Pushed
+
+### Changed Emails Only
+
+The push command is smart about detecting changes. It only uploads emails that have been modified since the last sync:
+
+```typescript
+// The CLI compares serialized versions to detect changes
+const changedEmails = localEmails.filter((email) => {
+  const remote = remoteEmailsById.get(email.id);
+  if (!remote) return true; // New email
+  return serialize(email) !== serialize(remote); // Changed email
+});
+```
+
+This means you can safely run `push` frequently without worrying about unnecessary API calls or updates.
+
+### Automatic Image Upload
+
+When you add new images to your emails using relative paths, push automatically handles the upload:
+
+<CodeGroup>
+```markdown Your Email
+---
+subject: New Product Launch
+---
+
+Check out our new product!
+
+![Product Photo](../media/new-product.png)
+```
+
+```bash Terminal Output
+images uploaded: 1 new image
+emails pushed: 1 updated, 0 created, 0 deleted, 0 failed
+```
+</CodeGroup>
+
+The CLI:
+1. Finds the relative image reference `../media/new-product.png`
+2. Uploads `new-product.png` to Buttondown
+3. Receives the remote URL (e.g., `https://buttondown.s3.amazonaws.com/images/xyz789.png`)
+4. Replaces the relative path with the remote URL in the email content
+5. Pushes the updated email
+
+### Automations
+
+Modified automation files in `automations/` are pushed to Buttondown:
+
+- **Existing automations** (with an `id` field) are updated via PATCH
+- **New automations** (without an `id`) are created via POST
+
+```json automations/onboarding.json
+{
+  "name": "Onboarding Sequence",
+  "status": "active",
+  "trigger": {
+    "type": "subscriber_created"
+  },
+  "actions": [
+    {
+      "type": "send_email",
+      "delay": 0,
+      "email_id": "welcome-day-1"
+    },
+    {
+      "type": "send_email",
+      "delay": 86400,
+      "email_id": "welcome-day-2"
+    }
+  ]
+}
+```
+
+### Snippets
+
+Snippets in `snippets/` are synced based on their identifier:
+
+```markdown snippets/social-links.md
+---
+id: snip_abc123
+name: Social Media Links
+---
+
+Follow us:
+- Twitter: [@example](https://twitter.com/example)
+- LinkedIn: [Company](https://linkedin.com/company/example)
+```
+
+### Newsletter Settings
+
+Changes to `newsletter.json` update your newsletter configuration:
+
+```json newsletter.json
+{
+  "name": "Tech Weekly",
+  "description": "Your weekly dose of tech insights",
+  "author": "Jane Doe",
+  "email_address": "hello@techweekly.com"
+}
+```
+
+## Image Handling Details
+
+### Supported Image Formats
+
+The push command supports uploading these image types:
+
+- PNG (`.png`)
+- JPEG (`.jpg`, `.jpeg`)
+- GIF (`.gif`)
+- WebP (`.webp`)
+- SVG (`.svg`)
+
+<Note>
+Images are uploaded with the correct MIME type based on their file extension.
+</Note>
+
+### Image Upload Process
+
+From the source code at `src/sync/images.ts:24`:
+
+```typescript
+export async function uploadImage(
+  configuration: Configuration,
+  imagePath: string,
+): Promise<{ id: string; url: string; filename: string }> {
+  const buffer = await readFile(imagePath);
+  const filename = path.basename(imagePath);
+  const ext = path.extname(imagePath).toLowerCase();
+  const mimeType = EXTENSION_TO_MIME[ext] || "application/octet-stream";
+
+  const formData = new FormData();
+  formData.append(
+    "image",
+    new Blob([new Uint8Array(buffer)], { type: mimeType }),
+    filename,
+  );
+
+  const response = await constructClient(configuration).post("/images", {
+    body: formData,
+  });
+  // ...
+}
+```
+
+### Relative to Absolute Conversion
+
+The CLI finds all relative image references and converts them:
+
+```markdown
+<!-- Local version -->
+![Dashboard](../media/screenshots/dashboard.png)
+
+<!-- Pushed to Buttondown -->
+![Dashboard](https://buttondown.s3.amazonaws.com/images/dashboard.png)
+```
+
+This happens automatically in `src/commands/push.tsx:138`:
+
+```typescript
+const changedEmails = localEmails
+  .map((email) => ({
+    ...email,
+    body: email.body
+      ? resolveRelativeImageReferences(email.body, emailsDir, imageMap)
+      : email.body,
+  }))
+```
+
+## Push Results
+
+After pushing, you'll see detailed results:
+
+```
+emails pushed: 3 updated, 1 created, 0 deleted, 0 failed
+automations pushed: 1 updated, 0 created, 0 deleted, 0 failed
+newsletter pushed: 1 updated, 0 created, 0 deleted, 0 failed
+snippets pushed: 0 updated, 1 created, 0 deleted, 0 failed
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Pull before pushing">
+    Always run `buttondown pull` before making changes and pushing. This ensures you have the latest content and prevents conflicts.
+    
+    ```bash
+    buttondown pull
+    # Make your changes
+    buttondown push
+    ```
+  </Accordion>
+  
+  <Accordion title="Test emails locally first">
+    Preview your Markdown content locally before pushing to ensure formatting is correct.
+  </Accordion>
+  
+  <Accordion title="Use version control">
+    Commit your changes to Git before pushing to Buttondown. This creates a history of your newsletter content.
+    
+    ```bash
+    git add .
+    git commit -m "Update welcome email copy"
+    buttondown push
+    ```
+  </Accordion>
+  
+  <Accordion title="Check image paths">
+    Make sure relative image paths are correct before pushing. The image file must exist in your `media/` directory.
+    
+    ```markdown
+    # Correct - relative to emails/ directory
+    ![Logo](../media/logo.png)
+    
+    # Wrong - absolute path (don't do this)
+    ![Logo](&lt;absolute-path&gt;/media/logo.png)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+### "Image upload failed"
+
+Make sure:
+- The image file exists at the specified path
+- The file is a supported image format
+- You have permission to read the file
+
+### "Email already exists"
+
+If you're creating a new email without an `id` field but an email with that slug already exists on Buttondown, you'll get an error. Pull first to get existing email IDs.
+
+### "Sync state not found"
+
+Run `buttondown pull` first to initialize the sync state file:
+
+```bash
+buttondown pull
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Pull Content" icon="arrow-down" href="/guides/pulling-content">
+    Learn how to pull content from Buttondown
+  </Card>
+  <Card title="Manage Emails" icon="envelope" href="/guides/managing-emails">
+    Create and edit newsletter emails
+  </Card>
+</CardGroup>
