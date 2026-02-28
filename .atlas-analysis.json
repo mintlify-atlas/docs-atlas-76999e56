@@ -1,0 +1,117 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "Buttondown CLI",
+  "projectDescription": "A command-line interface for syncing Buttondown newsletters and media with local folders",
+  "theme": "palm",
+  "primaryColor": "#3b82f6",
+  "lightColor": "#60a5fa",
+  "darkColor": "#2563eb",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "installation",
+              "quickstart"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/authentication",
+              "concepts/file-structure",
+              "concepts/email-format",
+              "concepts/sync-workflow"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/pulling-content",
+              "guides/pushing-content",
+              "guides/managing-emails",
+              "guides/managing-media",
+              "guides/working-with-automations",
+              "guides/working-with-snippets"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Command Reference",
+        "groups": [
+          {
+            "group": "Commands",
+            "pages": [
+              "commands/overview",
+              "commands/login",
+              "commands/logout",
+              "commands/pull",
+              "commands/push",
+              "commands/create"
+            ]
+          },
+          {
+            "group": "Configuration",
+            "pages": [
+              "configuration/options",
+              "configuration/directory-structure",
+              "configuration/state-file"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Sync Operations",
+            "pages": [
+              "api/emails",
+              "api/images",
+              "api/automations",
+              "api/snippets",
+              "api/newsletter"
+            ]
+          },
+          {
+            "group": "Core Types",
+            "pages": [
+              "api/types/configuration",
+              "api/types/resources",
+              "api/types/operations"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Sync emails and media between Buttondown and local folders",
+    "Edit newsletters locally in Markdown with frontmatter",
+    "Manage automations and snippets as code",
+    "Track sync state to avoid duplicate uploads",
+    "Interactive CLI built with React Ink"
+  ],
+  "publicApiSurface": [
+    "buttondown login",
+    "buttondown logout",
+    "buttondown pull",
+    "buttondown push",
+    "buttondown create",
+    "EMAILS_RESOURCE",
+    "IMAGES_RESOURCE",
+    "AUTOMATIONS_RESOURCE",
+    "SNIPPETS_RESOURCE",
+    "NEWSLETTER_RESOURCE",
+    "serialize()",
+    "deserialize()",
+    "uploadImage()",
+    "findRelativeImageReferences()",
+    "resolveRelativeImageReferences()"
+  ]
+}
